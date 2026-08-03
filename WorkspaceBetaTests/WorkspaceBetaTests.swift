@@ -52,6 +52,29 @@ struct WorkspaceBetaTests {
         #expect(message.contains("OTP"))
     }
 
+    @Test("Authentication OTP input keeps exactly six digits")
+    func normalizesAuthenticationOTP() {
+        #expect(WorkspaceAuthenticationRules.normalizedOTP("1a2 3-45678") == "123456")
+        #expect(WorkspaceAuthenticationRules.normalizedOTP("12") == "12")
+    }
+
+    @Test("The public Workspace uses the Android organization title")
+    func formatsAuthenticationOrganizationTitle() throws {
+        let publicServer = WorkspaceServer(
+            baseURL: try #require(URL(string: "https://workspace.exordos.com")),
+            realmName: "Genesis Corporation Workspace",
+            meetURL: nil
+        )
+        let customServer = WorkspaceServer(
+            baseURL: try #require(URL(string: "https://workspace.example.com")),
+            realmName: "Example Workspace",
+            meetURL: nil
+        )
+
+        #expect(WorkspaceAuthenticationRules.organizationTitle(for: publicServer) == "Exordos Workspace")
+        #expect(WorkspaceAuthenticationRules.organizationTitle(for: customServer) == "Example Workspace")
+    }
+
     @Test("Workspace image URNs are separated from their message caption")
     func parsesWorkspaceImageAttachment() {
         let parsed = WorkspaceAttachmentParser.parse("Caption\n[photo.jpg](urn:image:file-uuid)")

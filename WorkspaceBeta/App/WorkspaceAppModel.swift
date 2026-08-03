@@ -69,6 +69,16 @@ final class WorkspaceAppModel {
     func restore() async {
         guard phase == .restoring else { return }
 
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--reset-authentication") {
+            try? sessionStore.clear()
+            clearAuthenticatedState()
+            selectedServer = nil
+            phase = .signedOut
+            return
+        }
+        #endif
+
         do {
             guard let storedSession = try sessionStore.load() else {
                 phase = .signedOut

@@ -14,6 +14,22 @@ enum WorkspacePalette {
     static let danger = adaptive(light: 0xC93D3D, dark: 0xFF6B6B)
     static let online = Color(red: 0.16, green: 0.67, blue: 0.39)
 
+    // Authentication uses the same semantic palette as the Android reference.
+    // These colors intentionally stay separate from the messenger palette so
+    // matching the sign-in flow does not restyle already-shipped screens.
+    static let authBackground = adaptive(light: 0xF8F8FA, dark: 0x1B1B1D)
+    static let authField = adaptive(light: 0xFFFFFF, dark: 0x28282B)
+    static let authLogoBackground = adaptive(light: 0xEFEFF2, dark: 0x2D2D30)
+    static let authMutedText = adaptive(light: 0x68686E, dark: 0x9A9A9F)
+    static let authLabelText = adaptive(light: 0x606066, dark: 0x737378)
+    static let authDivider = adaptive(light: 0xDEDEE3, dark: 0x343438)
+    static let authDisabled = adaptive(light: 0xE1E1E5, dark: 0x555558)
+    static let authDisabledText = adaptive(light: 0xA0A0A6, dark: 0x8A8A8E)
+    static let authError = adaptive(light: 0xD92D35, dark: 0xFF4248)
+    static let authErrorContainer = adaptive(light: 0xFFECEE, dark: 0xFFE7E8)
+    static let authErrorText = adaptive(light: 0xB4232A, dark: 0xDE2B32)
+    static let authPrimaryText = Color(red: 23.0 / 255.0, green: 23.0 / 255.0, blue: 25.0 / 255.0)
+
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(
             UIColor { traits in
