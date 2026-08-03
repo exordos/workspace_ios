@@ -6,6 +6,7 @@
 //
 
 import CryptoKit
+import Foundation
 import XCTest
 
 final class WorkspaceBetaUITests: XCTestCase {
@@ -87,7 +88,64 @@ final class WorkspaceBetaUITests: XCTestCase {
         XCTAssertTrue(signInButton.isEnabled)
         signInButton.tap()
 
-        XCTAssertTrue(app.tabBars.buttons["Чаты"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["activityTab"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["messengerTab"].exists)
+        XCTAssertTrue(app.buttons["calendarTab"].exists)
+        XCTAssertTrue(app.buttons["mailTab"].exists)
+        XCTAssertTrue(app.buttons["profileTab"].exists)
+        assertBottomNavigationVisible(app)
+
+        XCTAssertTrue(app.staticTexts["Моя активность"].waitForExistence(timeout: 20))
+        settle()
+        capture(app, name: "01 My Activity")
+
+        let starred = app.buttons["Избранное"]
+        XCTAssertTrue(starred.exists)
+        starred.tap()
+        XCTAssertTrue(app.navigationBars["Избранное"].waitForExistence(timeout: 20))
+        settle()
+        capture(app, name: "02 Starred")
+        app.navigationBars["Избранное"].buttons.element(boundBy: 0).tap()
+
+        let inbox = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Входящие"))
+            .firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        inbox.tap()
+        XCTAssertTrue(app.navigationBars["Входящие"].waitForExistence(timeout: 20))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "03 Inbox")
+        app.navigationBars["Входящие"].buttons.element(boundBy: 0).tap()
+
+        app.buttons["messengerTab"].tap()
+        XCTAssertTrue(app.navigationBars["Мессенджер"].waitForExistence(timeout: 20))
+        settle()
+        capture(app, name: "04 Messenger")
+
+        let sandboxStream = app.staticTexts["песочница"].firstMatch
+        XCTAssertTrue(sandboxStream.waitForExistence(timeout: 20))
+        sandboxStream.tap()
+        XCTAssertTrue(app.navigationBars["песочница"].waitForExistence(timeout: 20))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "05 Topics")
+        app.navigationBars["песочница"].buttons.element(boundBy: 0).tap()
+
+        app.buttons["calendarTab"].tap()
+        XCTAssertTrue(app.otherElements["calendarComingSoon"].waitForExistence(timeout: 10))
+        settle()
+        capture(app, name: "06 Calendar")
+
+        app.buttons["mailTab"].tap()
+        XCTAssertTrue(app.otherElements["mailComingSoon"].waitForExistence(timeout: 10))
+        settle()
+        capture(app, name: "07 Mail")
+
+        app.buttons["profileTab"].tap()
+        XCTAssertTrue(app.navigationBars["Профиль"].waitForExistence(timeout: 10))
+        settle()
+        capture(app, name: "08 Profile")
     }
 
     @MainActor
@@ -119,6 +177,33 @@ final class WorkspaceBetaUITests: XCTestCase {
             UInt32(bytes[offset + 3])
         let modulus = UInt32(pow(10.0, Double(digits)))
         return String(format: "%0*u", digits, value % modulus)
+    }
+
+    private func capture(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func assertBottomNavigationVisible(
+        _ app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let identifiers = ["activityTab", "messengerTab", "calendarTab", "mailTab", "profileTab"]
+        for identifier in identifiers {
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.exists, "Missing \(identifier)", file: file, line: line)
+            XCTAssertTrue(button.isHittable, "\(identifier) is not hittable", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(button.frame.width, 44, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(button.frame.minX, 0, file: file, line: line)
+            XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX + 0.5, file: file, line: line)
+        }
+    }
+
+    private func settle() {
+        RunLoop.current.run(until: Date().addingTimeInterval(1.8))
     }
 
     private func decodeBase32(_ value: String) throws -> Data {

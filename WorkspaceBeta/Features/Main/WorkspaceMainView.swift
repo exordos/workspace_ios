@@ -2,22 +2,46 @@ import SwiftUI
 
 struct WorkspaceMainView: View {
     @Environment(WorkspaceAppModel.self) private var appModel
-    @State private var selectedTab = WorkspaceTab.chats
+    @State private var selectedTab = WorkspaceTab.activity
     @State private var chatPath = NavigationPath()
+    @State private var selectedFolderID: String?
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack(path: $chatPath) {
-                WorkspaceChatListView()
-            }
-            .tabItem { Label("Чаты", systemImage: "bubble.left.and.bubble.right") }
-            .tag(WorkspaceTab.chats)
+        ZStack {
+            TabView(selection: $selectedTab) {
+                NavigationStack {
+                    WorkspaceMyActivityView(
+                        selectedFolderID: $selectedFolderID,
+                        onOpenMessenger: { selectedTab = .messenger }
+                    )
+                }
+                .tag(WorkspaceTab.activity)
 
-            NavigationStack {
-                WorkspaceProfileView()
+                NavigationStack(path: $chatPath) {
+                    WorkspaceChatListView(selectedFolderID: $selectedFolderID)
+                }
+                .tag(WorkspaceTab.messenger)
+
+                NavigationStack {
+                    WorkspaceComingSoonView(destination: .calendar)
+                }
+                .tag(WorkspaceTab.calendar)
+
+                NavigationStack {
+                    WorkspaceComingSoonView(destination: .mail)
+                }
+                .tag(WorkspaceTab.mail)
+
+                NavigationStack {
+                    WorkspaceProfileView()
+                }
+                .tag(WorkspaceTab.profile)
             }
-            .tabItem { Label("Профиль", systemImage: "person.crop.circle") }
-            .tag(WorkspaceTab.profile)
+            .toolbar(.hidden, for: .tabBar)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            WorkspaceBottomNavigation(selectedTab: $selectedTab)
+                .zIndex(1)
         }
         .tint(WorkspacePalette.primary)
         .task(id: WorkspacePushNavigationKey(
@@ -41,7 +65,7 @@ struct WorkspaceMainView: View {
                 stream = try? await appModel.createDirectChat(with: user)
             }
             if let stream {
-                selectedTab = .chats
+                selectedTab = .messenger
                 chatPath = NavigationPath()
                 chatPath.append(stream)
             }
@@ -54,7 +78,7 @@ struct WorkspaceMainView: View {
                 session: session,
                 streamUUID: stream.id
             )
-            selectedTab = .chats
+            selectedTab = .messenger
             chatPath = NavigationPath()
             if let topic = topics?.first(where: {
                 $0.id == topicIdentifier || $0.name == topicIdentifier
@@ -68,9 +92,42 @@ struct WorkspaceMainView: View {
     }
 }
 
-private enum WorkspaceTab: Hashable {
-    case chats
+enum WorkspaceTab: CaseIterable, Hashable {
+    case activity
+    case messenger
+    case calendar
+    case mail
     case profile
+
+    var title: String {
+        switch self {
+        case .activity: "Моя активность"
+        case .messenger: "Мессенджер"
+        case .calendar: "Календарь"
+        case .mail: "Почта"
+        case .profile: "Профиль"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .activity: "house"
+        case .messenger: "bubble.left.and.bubble.right"
+        case .calendar: "calendar"
+        case .mail: "envelope"
+        case .profile: "person.crop.circle"
+        }
+    }
+
+    var selectedSystemImage: String {
+        switch self {
+        case .activity: "house.fill"
+        case .messenger: "bubble.left.and.bubble.right.fill"
+        case .calendar: "calendar"
+        case .mail: "envelope.fill"
+        case .profile: "person.crop.circle.fill"
+        }
+    }
 }
 
 private struct WorkspacePushNavigationKey: Hashable {
@@ -86,7 +143,7 @@ private struct WorkspacePushConversationDestination: Hashable {
 private struct WorkspaceChatListView: View {
     @Environment(WorkspaceAppModel.self) private var appModel
     @State private var searchText = ""
-    @State private var selectedFolderID: String?
+    @Binding var selectedFolderID: String?
     @State private var showingNewChat = false
     @State private var showingCreateFolder = false
     @State private var newFolderName = ""
@@ -166,7 +223,8 @@ private struct WorkspaceChatListView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(WorkspacePalette.background)
-        .navigationTitle("Чаты")
+        .navigationTitle("Мессенджер")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {

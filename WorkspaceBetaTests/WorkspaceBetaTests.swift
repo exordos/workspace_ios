@@ -147,4 +147,37 @@ struct WorkspaceBetaTests {
         base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
         #expect(Data(base64Encoded: base64)?.count == 32)
     }
+
+    @Test("The mobile shell keeps the agreed five-tab order")
+    func mobileShellTabOrder() {
+        #expect(WorkspaceTab.allCases.map(\.title) == [
+            "Моя активность",
+            "Мессенджер",
+            "Календарь",
+            "Почта",
+            "Профиль",
+        ])
+        #expect(WorkspaceTab.allCases.map(\.selectedSystemImage) == [
+            "house.fill",
+            "bubble.left.and.bubble.right.fill",
+            "calendar",
+            "envelope.fill",
+            "person.crop.circle.fill",
+        ])
+    }
+
+    @Test("My Activity search follows the Android destination contract")
+    func filtersMyActivityDestinations() {
+        #expect(filteredActivityDestinations(query: "  упом  ") == [.mentions])
+        #expect(filteredActivityDestinations(query: "нет такого").isEmpty)
+        #expect(filteredActivityDestinations(query: "").count == 7)
+    }
+
+    @Test("Activity message filters map to the backend query contract")
+    func mapsActivityMessageFilters() {
+        #expect(WorkspaceMessageActivityFilter.feed.queryItem == nil)
+        #expect(WorkspaceMessageActivityFilter.starred.queryItem?.name == "starred")
+        #expect(WorkspaceMessageActivityFilter.pinned.queryItem?.value == "true")
+        #expect(WorkspaceMessageActivityFilter.mentioned.queryItem?.name == "mentioned")
+    }
 }

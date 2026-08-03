@@ -1,5 +1,17 @@
 import Foundation
 
+nonisolated enum WorkspaceMessageActivityFilter: String, CaseIterable, Sendable {
+    case feed
+    case starred
+    case pinned
+    case mentioned
+
+    var queryItem: URLQueryItem? {
+        guard self != .feed else { return nil }
+        return URLQueryItem(name: rawValue, value: "true")
+    }
+}
+
 actor WorkspaceAPI {
     private enum Constants {
         static let userAgent = "Workspace/ios/0.1.0"
@@ -304,6 +316,25 @@ actor WorkspaceAPI {
         var queryItems = [URLQueryItem(name: "stream_uuid", value: streamUUID)]
         if let topicUUID, !topicUUID.isEmpty {
             queryItems.append(URLQueryItem(name: "topic_uuid", value: topicUUID))
+        }
+        return try await sendAuthorized(
+            session: session,
+            path: "/api/workspace/v1/messenger/messages/",
+            queryItems: queryItems
+        )
+    }
+
+    func activityMessages(
+        session: WorkspaceSession,
+        filter: WorkspaceMessageActivityFilter
+    ) async throws -> [WorkspaceMessage] {
+        var queryItems = [
+            URLQueryItem(name: "page_limit", value: "50"),
+            URLQueryItem(name: "sort_key", value: "created_at"),
+            URLQueryItem(name: "sort_dir", value: "desc"),
+        ]
+        if let queryItem = filter.queryItem {
+            queryItems.append(queryItem)
         }
         return try await sendAuthorized(
             session: session,
