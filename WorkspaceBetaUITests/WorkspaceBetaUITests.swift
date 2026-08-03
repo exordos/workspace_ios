@@ -112,11 +112,11 @@ final class WorkspaceBetaUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 10))
         inbox.tap()
-        XCTAssertTrue(app.navigationBars["Входящие"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["inboxTitle"].waitForExistence(timeout: 20))
         settle()
         assertBottomNavigationVisible(app)
         capture(app, name: "03 Inbox")
-        app.navigationBars["Входящие"].buttons.element(boundBy: 0).tap()
+        app.buttons["inboxBackButton"].tap()
 
         app.buttons["messengerTab"].tap()
         XCTAssertTrue(app.buttons["newMessageButton"].waitForExistence(timeout: 20))
@@ -164,11 +164,11 @@ final class WorkspaceBetaUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 10))
         inbox.tap()
-        XCTAssertTrue(app.navigationBars["Входящие"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["inboxTitle"].waitForExistence(timeout: 20))
         settle()
         assertBottomNavigationVisible(app)
         capture(app, name: "Shell 02 Inbox")
-        app.navigationBars["Входящие"].buttons.element(boundBy: 0).tap()
+        app.buttons["inboxBackButton"].tap()
 
         app.buttons["messengerTab"].tap()
         XCTAssertTrue(app.buttons["newMessageButton"].waitForExistence(timeout: 20))
@@ -187,6 +187,12 @@ final class WorkspaceBetaUITests: XCTestCase {
         settle()
         assertBottomNavigationVisible(app)
         capture(app, name: "Shell 05 Mail")
+
+        app.buttons["profileTab"].tap()
+        XCTAssertTrue(app.navigationBars["Профиль"].waitForExistence(timeout: 10))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 06 Profile")
     }
 
     @MainActor

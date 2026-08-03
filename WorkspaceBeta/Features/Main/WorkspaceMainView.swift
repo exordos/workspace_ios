@@ -109,23 +109,23 @@ enum WorkspaceTab: CaseIterable, Hashable {
         }
     }
 
-    var systemImage: String {
+    var assetName: String? {
         switch self {
-        case .activity: "house"
-        case .messenger: "bubble.left.and.bubble.right"
-        case .calendar: "calendar"
-        case .mail: "envelope"
-        case .profile: "person.crop.circle"
+        case .activity: "workspaceActivityTab"
+        case .messenger: "workspaceMessengerTab"
+        case .calendar: "workspaceCalendarTab"
+        case .mail: "workspaceMailTab"
+        case .profile: nil
         }
     }
 
-    var selectedSystemImage: String {
+    var iconSize: CGSize {
         switch self {
-        case .activity: "house.fill"
-        case .messenger: "bubble.left.and.bubble.right.fill"
-        case .calendar: "calendar"
-        case .mail: "envelope.fill"
-        case .profile: "person.crop.circle.fill"
+        case .activity: CGSize(width: 21, height: 24)
+        case .messenger: CGSize(width: 27, height: 24)
+        case .calendar: CGSize(width: 24, height: 27)
+        case .mail: CGSize(width: 27, height: 21)
+        case .profile: CGSize(width: 36, height: 36)
         }
     }
 }
@@ -338,11 +338,11 @@ private struct WorkspaceMessengerHeader: View {
         ZStack {
             VStack(spacing: 2) {
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(WorkspaceTypography.navigation(size: 16))
                     .foregroundStyle(WorkspacePalette.text)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 13))
+                    .font(WorkspaceTypography.content(size: 12))
                     .foregroundStyle(WorkspacePalette.secondaryText)
                     .lineLimit(1)
             }
@@ -351,8 +351,10 @@ private struct WorkspaceMessengerHeader: View {
             HStack {
                 Spacer()
                 Button(action: onCompose) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 23, weight: .regular))
+                    Image("workspaceCompose")
+                        .resizable()
+                        .renderingMode(.template)
+                        .frame(width: 32, height: 32)
                         .foregroundStyle(WorkspacePalette.secondaryText)
                         .frame(width: 48, height: 48)
                 }
@@ -360,7 +362,7 @@ private struct WorkspaceMessengerHeader: View {
                 .accessibilityIdentifier("newMessageButton")
             }
         }
-        .frame(height: 58)
+        .frame(height: 50)
     }
 }
 
@@ -368,12 +370,14 @@ private struct WorkspaceMessengerSearchField: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 17))
+        HStack(spacing: 8) {
+            Image("workspaceSearch")
+                .resizable()
+                .renderingMode(.template)
+                .frame(width: 24, height: 24)
                 .foregroundStyle(WorkspacePalette.mobileIcon)
             TextField("Найти", text: $text)
-                .font(.system(size: 16))
+                .font(WorkspaceTypography.navigation(size: 14))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !text.isEmpty {
@@ -387,9 +391,9 @@ private struct WorkspaceMessengerSearchField: View {
                 .accessibilityLabel("Очистить поиск")
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 42)
-        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 8)
+        .frame(height: 36)
+        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Поиск")
     }
@@ -411,14 +415,14 @@ private struct WorkspaceMessengerFolderTabs: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 24) {
+            HStack(spacing: 6) {
                 tab(title: "Все чаты", count: allUnreadCount, id: nil)
                 ForEach(visibleFolders) { folder in
                     tab(title: localizedFolderTitle(folder.title), count: folder.unreadCount, id: folder.id)
                 }
                 Button(action: onAdd) {
                     Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(WorkspaceTypography.navigation(size: 20))
                         .foregroundStyle(WorkspacePalette.mobileIcon)
                         .frame(width: 38, height: 42)
                 }
@@ -435,10 +439,10 @@ private struct WorkspaceMessengerFolderTabs: View {
         return Button {
             onSelect(id)
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 HStack(spacing: 6) {
                     Text(title)
-                        .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                        .font(WorkspaceTypography.navigation(size: 14, weight: .medium))
                         .foregroundStyle(selected ? WorkspacePalette.text : WorkspacePalette.mobileIcon)
                     if count > 0 {
                         WorkspaceUnreadBadge(count: count, compact: true)
@@ -449,6 +453,7 @@ private struct WorkspaceMessengerFolderTabs: View {
                     .frame(height: 2)
             }
         }
+        .padding(.horizontal, 6)
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -479,7 +484,7 @@ private struct WorkspaceStreamRail: View {
                             .frame(width: 58, height: 58)
                             .background(
                                 selectedStreamID == stream.id ? WorkspacePalette.mobileCard : .clear,
-                                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                             )
                     }
                     .buttonStyle(.plain)
@@ -504,7 +509,7 @@ private struct WorkspaceMessengerTopics: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 6) {
                 if stream.isPrivate {
                     NavigationLink(value: stream) {
                         WorkspaceMessengerAllTopicsRow(title: stream.name, subtitle: "Личный чат")
@@ -543,6 +548,8 @@ private struct WorkspaceMessengerTopics: View {
                     }
                 }
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
         }
         .scrollIndicators(.hidden)
         .background(WorkspacePalette.background)
@@ -555,28 +562,31 @@ private struct WorkspaceMessengerAllTopicsRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(WorkspacePalette.surfaceRaised)
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
                 .overlay {
-                    Image(systemName: "house")
-                        .font(.system(size: 22, weight: .medium))
+                    Image("workspaceActivityTab")
+                        .resizable()
+                        .renderingMode(.template)
+                        .frame(width: 18, height: 21)
                         .foregroundStyle(WorkspacePalette.primary)
                 }
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(WorkspaceTypography.content(size: 14, weight: .medium))
                     .foregroundStyle(WorkspacePalette.text)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 14))
+                    .font(WorkspaceTypography.content(size: 12))
                     .foregroundStyle(WorkspacePalette.secondaryText)
                     .lineLimit(1)
             }
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 68)
+        .padding(.horizontal, 10)
+        .frame(minHeight: 64)
+        .background(WorkspacePalette.mobileCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -585,18 +595,18 @@ private struct WorkspaceMessengerTopicRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: 1.5)
                 .fill(workspaceColor(topic.color))
-                .frame(width: 3, height: 48)
+                .frame(width: 3, height: 44)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("# \(topic.name)")
-                        .font(.system(size: 16, weight: topic.unreadCount > 0 ? .semibold : .regular))
+                        .font(WorkspaceTypography.content(size: 14, weight: .medium))
                         .foregroundStyle(WorkspacePalette.text)
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     Text(topicTime)
-                        .font(.system(size: 12))
+                        .font(WorkspaceTypography.content(size: 12))
                         .foregroundStyle(WorkspacePalette.secondaryText)
                 }
                 HStack(spacing: 6) {
@@ -604,25 +614,22 @@ private struct WorkspaceMessengerTopicRow: View {
                         .foregroundStyle(WorkspacePalette.primary)
                     Spacer()
                 }
-                .font(.system(size: 12))
+                .font(WorkspaceTypography.content(size: 12))
             }
             Spacer(minLength: 6)
             if topic.unreadCount > 0 {
                 WorkspaceUnreadBadge(count: topic.unreadCount, compact: true)
             }
-            Image(systemName: "bell")
-                .font(.system(size: 17))
+            Image("workspaceNotification")
+                .resizable()
+                .renderingMode(.template)
+                .frame(width: 13, height: 16)
                 .foregroundStyle(WorkspacePalette.mobileIcon)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 10)
-        .frame(minHeight: 62)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(WorkspacePalette.separator)
-                .frame(height: 0.5)
-                .padding(.leading, 12)
-        }
+        .frame(minHeight: 64)
+        .background(WorkspacePalette.mobileCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -668,10 +675,10 @@ private struct WorkspaceUnreadBadge: View {
 
     var body: some View {
         Text(count > 99 ? "99+" : String(max(0, count)))
-            .font(.system(size: compact ? 11 : 13, weight: .bold))
+            .font(WorkspaceTypography.content(size: 12))
             .foregroundStyle(.white)
-            .padding(.horizontal, compact ? 5 : 7)
-            .frame(minWidth: compact ? 20 : 26, minHeight: compact ? 20 : 26)
+            .padding(.horizontal, compact ? 4 : 6)
+            .frame(minWidth: compact ? 15 : 22, minHeight: compact ? 15 : 22)
             .background(WorkspacePalette.unreadBadge, in: Capsule())
     }
 }

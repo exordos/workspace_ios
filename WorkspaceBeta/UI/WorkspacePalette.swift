@@ -5,17 +5,17 @@ enum WorkspacePalette {
     static let background = adaptive(light: 0xF6F6F8, dark: 0x1B1B1D)
     static let surface = adaptive(light: 0xFFFFFF, dark: 0x202022)
     static let surfaceRaised = adaptive(light: 0xFFFFFF, dark: 0x29292C)
-    static let mobileCard = adaptive(light: 0xFFFFFF, dark: 0x3A3A3D)
-    static let mobileNavigation = adaptive(light: 0xFFFFFF, dark: 0x343437)
-    static let mobileSelection = adaptive(light: 0xE5E5E8, dark: 0x56565B)
-    static let mobileIcon = adaptive(light: 0x77777D, dark: 0x77777D)
+    static let mobileCard = adaptive(light: 0xFFFFFF, dark: 0x333333)
+    static let mobileNavigation = adaptive(light: 0xFFFFFF, dark: 0x333333)
+    static let mobileSelection = adaptive(light: 0xE5E5E8, dark: 0x4B4B4B)
+    static let mobileIcon = adaptive(light: 0x707070, dark: 0x707070)
     static let unreadBadge = Color(red: 1.0, green: 0.08, blue: 0.14)
     static let primary = adaptive(light: 0xE96520, dark: 0xFF8138)
     static let primaryPressed = adaptive(light: 0xC94F13, dark: 0xEA6A24)
     static let text = adaptive(light: 0x1B1B1D, dark: 0xF8F8F9)
-    static let secondaryText = adaptive(light: 0x68686D, dark: 0xB5B5BB)
+    static let secondaryText = adaptive(light: 0x68686D, dark: 0x8D8D8F)
     static let separator = adaptive(light: 0xE4E4E8, dark: 0x38383D)
-    static let input = adaptive(light: 0xECECF0, dark: 0x2C2C2F)
+    static let input = adaptive(light: 0xECECF0, dark: 0x272729)
     static let danger = adaptive(light: 0xC93D3D, dark: 0xFF6B6B)
     static let online = Color(red: 0.16, green: 0.67, blue: 0.39)
 
@@ -41,6 +41,25 @@ enum WorkspacePalette {
                 UIColor(hex: traits.userInterfaceStyle == .dark ? dark : light)
             }
         )
+    }
+}
+
+enum WorkspaceTypography {
+    static func navigation(size: CGFloat, weight: Font.Weight = .medium) -> Font {
+        switch weight {
+        case .bold, .heavy, .black:
+            .custom("HelveticaNeue-Bold", fixedSize: size)
+        case .semibold:
+            .custom("HelveticaNeue-Medium", fixedSize: size)
+        case .medium:
+            .custom("HelveticaNeue-Medium", fixedSize: size)
+        default:
+            .custom("HelveticaNeue", fixedSize: size)
+        }
+    }
+
+    static func content(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
     }
 }
 

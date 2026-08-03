@@ -157,12 +157,12 @@ struct WorkspaceBetaTests {
             "Почта",
             "Профиль",
         ])
-        #expect(WorkspaceTab.allCases.map(\.selectedSystemImage) == [
-            "house.fill",
-            "bubble.left.and.bubble.right.fill",
-            "calendar",
-            "envelope.fill",
-            "person.crop.circle.fill",
+        #expect(WorkspaceTab.allCases.map(\.assetName) == [
+            "workspaceActivityTab",
+            "workspaceMessengerTab",
+            "workspaceCalendarTab",
+            "workspaceMailTab",
+            nil,
         ])
     }
 
