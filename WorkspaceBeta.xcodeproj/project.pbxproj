@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA5510010000000000000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = CA5510030000000000000001 /* FirebaseMessaging */; };
 		BEFE76CF2F79B336002AA135 /* JitsiMeetSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BEFE76CE2F79B336002AA135 /* JitsiMeetSDK */; };
 /* End PBXBuildFile section */
 
@@ -33,9 +34,22 @@
 		BEE741A72F47AAEE00137C3A /* WorkspaceBetaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WorkspaceBetaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CA5510040000000000000001 /* Exceptions for "WorkspaceBeta" folder in "WorkspaceBeta" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BEE7418D2F47AAEC00137C3A /* WorkspaceBeta */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BEE741902F47AAEC00137C3A /* WorkspaceBeta */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CA5510040000000000000001 /* Exceptions for "WorkspaceBeta" folder in "WorkspaceBeta" target */,
+			);
 			path = WorkspaceBeta;
 			sourceTree = "<group>";
 		};
@@ -56,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA5510010000000000000001 /* FirebaseMessaging in Frameworks */,
 				BEFE76CF2F79B336002AA135 /* JitsiMeetSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -125,6 +140,7 @@
 			);
 			name = WorkspaceBeta;
 			packageProductDependencies = (
+				CA5510030000000000000001 /* FirebaseMessaging */,
 				BEFE76CE2F79B336002AA135 /* JitsiMeetSDK */,
 			);
 			productName = WorkspaceBeta;
@@ -211,6 +227,7 @@
 			mainGroup = BEE741852F47AAEC00137C3A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				CA5510020000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				BEFE76C52F7999D5002AA135 /* XCRemoteSwiftPackageReference "jitsi-meet-ios-sdk-releases" */,
 				BEFE76C92F79AAB5002AA135 /* XCRemoteSwiftPackageReference "giphy-ios-sdk" */,
 			);
@@ -414,13 +431,16 @@
 		BEE741B22F47AAEF00137C3A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = WorkspaceBeta/WorkspaceBeta.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 572L26ZP26;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WorkspaceBeta/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "For video calls";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For audio calls";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -452,13 +472,16 @@
 		BEE741B32F47AAEF00137C3A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = WorkspaceBeta/WorkspaceBeta.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 572L26ZP26;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WorkspaceBeta/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "For video calls";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For audio calls";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -613,6 +636,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		CA5510020000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = exactVersion;
+				version = 12.17.0;
+			};
+		};
 		BEFE76C52F7999D5002AA135 /* XCRemoteSwiftPackageReference "jitsi-meet-ios-sdk-releases" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/jitsi/jitsi-meet-ios-sdk-releases";
@@ -632,6 +663,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		CA5510030000000000000001 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CA5510020000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
 		BEFE76CE2F79B336002AA135 /* JitsiMeetSDK */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BEFE76C52F7999D5002AA135 /* XCRemoteSwiftPackageReference "jitsi-meet-ios-sdk-releases" */;

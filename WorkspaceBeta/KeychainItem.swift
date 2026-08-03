@@ -6,15 +6,16 @@
 //
 
 import Foundation
+import Security
 
-enum KeychainError: Error {
+nonisolated enum KeychainError: Error {
     case noItem
     case unexpectedItemData
     case dataEncodingError
     case unhandledError(status: OSStatus)
 }
 
-struct KeychainItem {
+nonisolated struct KeychainItem {
 
     static let defaultService = "ru.genesiscorporation.WorkspaceBeta"
 
@@ -32,7 +33,7 @@ struct KeychainItem {
 
     func updateToAccessibleAfterFirstUnlock() throws {
         var attributesToUpdate = [String: AnyObject]()
-        attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
         let query = keychainQuery(with: service, account: account, accessGroup: accessGroup)
         let status = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
@@ -61,7 +62,7 @@ struct KeychainItem {
 
             var attributesToUpdate = [String: AnyObject]()
             attributesToUpdate[kSecValueData as String] = encodedItem as AnyObject?
-            attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
             let query = keychainQuery(with: service, account: account, accessGroup: accessGroup)
             let status = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
@@ -71,7 +72,7 @@ struct KeychainItem {
 
             var newItem = keychainQuery(with: service, account: account, accessGroup: accessGroup)
             newItem[kSecValueData as String] = encodedItem as AnyObject?
-            newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
             let status = SecItemAdd(newItem as CFDictionary, nil)
 
@@ -130,4 +131,3 @@ struct KeychainItem {
         return query
     }
 }
-
