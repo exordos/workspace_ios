@@ -7,48 +7,48 @@ struct WorkspaceMainView: View {
     @State private var selectedFolderID: String?
 
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
-                NavigationStack {
-                    WorkspaceMyActivityView(
-                        selectedFolderID: $selectedFolderID,
-                        onOpenMessenger: { selectedTab = .messenger }
-                    )
-                }
-                .tag(WorkspaceTab.activity)
-
-                NavigationStack(path: $chatPath) {
-                    WorkspaceChatListView(selectedFolderID: $selectedFolderID)
-                }
-                .tag(WorkspaceTab.messenger)
-
-                NavigationStack {
-                    WorkspaceComingSoonView(destination: .calendar)
-                }
-                .tag(WorkspaceTab.calendar)
-
-                NavigationStack {
-                    WorkspaceComingSoonView(destination: .mail)
-                }
-                .tag(WorkspaceTab.mail)
-
-                NavigationStack {
-                    WorkspaceProfileView()
-                }
-                .tag(WorkspaceTab.profile)
-            }
-            .toolbar(.hidden, for: .tabBar)
-        }
+        selectedContent
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            WorkspaceBottomNavigation(selectedTab: $selectedTab)
-                .zIndex(1)
+            if selectedTab != .messenger || chatPath.isEmpty {
+                WorkspaceBottomNavigation(selectedTab: $selectedTab)
+            }
         }
-        .tint(WorkspacePalette.primary)
+        .background(WorkspacePalette.background)
+        .tint(WorkspacePalette.text)
         .task(id: WorkspacePushNavigationKey(
             phase: appModel.phase,
             revision: appModel.pushRouteRevision
         )) {
             await openPendingPushRoute()
+        }
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selectedTab {
+        case .activity:
+            NavigationStack {
+                WorkspaceMyActivityView(
+                    selectedFolderID: $selectedFolderID,
+                    onOpenMessenger: { selectedTab = .messenger }
+                )
+            }
+        case .messenger:
+            NavigationStack(path: $chatPath) {
+                WorkspaceMessengerView(selectedFolderID: $selectedFolderID)
+            }
+        case .calendar:
+            NavigationStack {
+                WorkspaceComingSoonView(destination: .calendar)
+            }
+        case .mail:
+            NavigationStack {
+                WorkspaceComingSoonView(destination: .mail)
+            }
+        case .profile:
+            NavigationStack {
+                WorkspaceProfileView()
+            }
         }
     }
 
@@ -140,112 +140,90 @@ private struct WorkspacePushConversationDestination: Hashable {
     let topic: WorkspaceTopic
 }
 
-private struct WorkspaceChatListView: View {
+private struct WorkspaceMessengerView: View {
     @Environment(WorkspaceAppModel.self) private var appModel
-    @State private var searchText = ""
     @Binding var selectedFolderID: String?
+    @State private var selectedStreamID: String?
+    @State private var searchText = ""
+    @State private var topics: [WorkspaceTopic] = []
+    @State private var bindings: [WorkspaceStreamBinding] = []
+    @State private var loadingStreamID: String?
+    @State private var errorMessage: String?
     @State private var showingNewChat = false
     @State private var showingCreateFolder = false
     @State private var newFolderName = ""
 
     private var filteredStreams: [WorkspaceStream] {
         var result = appModel.streams
-
         if let selectedFolderID,
            let folder = appModel.folders.first(where: { $0.id == selectedFolderID }) {
             let streamIDs = Set(folder.items.map(\.streamUUID))
             result = result.filter { streamIDs.contains($0.id) }
         }
-
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !query.isEmpty {
             result = result.filter {
                 $0.name.localizedCaseInsensitiveContains(query) ||
-                $0.description?.localizedCaseInsensitiveContains(query) == true
+                    $0.description?.localizedCaseInsensitiveContains(query) == true
             }
         }
         return result
     }
 
+    private var selectedStream: WorkspaceStream? {
+        filteredStreams.first { $0.id == selectedStreamID } ?? filteredStreams.first
+    }
+
     var body: some View {
-        List {
-            if !appModel.folders.isEmpty {
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            folderChip(title: "Все", unreadCount: appModel.streams.reduce(0) { $0 + $1.unreadCount }, id: nil)
-                            ForEach(appModel.folders) { folder in
-                                folderChip(title: folder.title, unreadCount: folder.unreadCount, id: folder.id)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 0))
-                    .listRowBackground(WorkspacePalette.background)
-                }
-            }
+        VStack(spacing: 0) {
+            WorkspaceMessengerHeader(
+                title: selectedStream?.name ?? "Мессенджер",
+                subtitle: streamSubtitle,
+                onCompose: { showingNewChat = true }
+            )
+
+            WorkspaceMessengerSearchField(text: $searchText)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+
+            WorkspaceMessengerFolderTabs(
+                folders: appModel.folders,
+                selectedFolderID: selectedFolderID,
+                allUnreadCount: totalUnreadCount,
+                onSelect: { selectedFolderID = $0 },
+                onAdd: { showingCreateFolder = true }
+            )
+
+            Divider().overlay(WorkspacePalette.separator)
 
             if filteredStreams.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty ? "Чатов пока нет" : "Ничего не найдено",
-                    systemImage: searchText.isEmpty ? "bubble.left" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "Новые каналы и личные сообщения появятся здесь." : "Попробуйте изменить запрос.")
-                )
-                .listRowBackground(WorkspacePalette.background)
+                ContentUnavailableView.search(text: searchText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Section {
-                    ForEach(filteredStreams) { stream in
-                        NavigationLink(value: stream) {
-                            WorkspaceStreamRow(stream: stream)
-                        }
-                        .listRowBackground(WorkspacePalette.surface)
-                        .contextMenu {
-                            if !appModel.folders.isEmpty {
-                                Menu("Папки") {
-                                    ForEach(appModel.folders) { folder in
-                                        let included = folder.items.contains { $0.streamUUID == stream.id }
-                                        Button {
-                                            Task { await appModel.toggle(stream, in: folder) }
-                                        } label: {
-                                            Label(
-                                                folder.title,
-                                                systemImage: included ? "checkmark.circle.fill" : "circle"
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                HStack(spacing: 0) {
+                    WorkspaceStreamRail(
+                        streams: filteredStreams,
+                        selectedStreamID: selectedStream?.id,
+                        onSelect: { selectedStreamID = $0.id }
+                    )
+                    .frame(width: 72)
+
+                    Divider().overlay(WorkspacePalette.separator)
+
+                    if let selectedStream {
+                        WorkspaceMessengerTopics(
+                            stream: selectedStream,
+                            topics: topics,
+                            isLoading: loadingStreamID == selectedStream.id,
+                            errorMessage: errorMessage
+                        )
+                        .id(selectedStream.id)
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
         .background(WorkspacePalette.background)
-        .navigationTitle("Мессенджер")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        showingNewChat = true
-                    } label: {
-                        Label("Новое сообщение", systemImage: "person.badge.plus")
-                    }
-                    Button {
-                        showingCreateFolder = true
-                    } label: {
-                        Label("Новая папка", systemImage: "folder.badge.plus")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Создать")
-            }
-        }
-        .searchable(text: $searchText, prompt: "Поиск")
-        .refreshable { await appModel.retryLoadingContent() }
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: WorkspaceStream.self) { stream in
             if let session = appModel.session {
                 WorkspaceStreamDestinationView(
@@ -269,12 +247,6 @@ private struct WorkspaceChatListView: View {
                 )
             }
         }
-        .overlay(alignment: .bottom) {
-            if let error = appModel.errorMessage {
-                WorkspaceInlineError(message: error)
-                    .padding()
-            }
-        }
         .sheet(isPresented: $showingNewChat) {
             WorkspaceNewChatView()
         }
@@ -289,41 +261,427 @@ private struct WorkspaceChatListView: View {
         } message: {
             Text("Папка поможет сгруппировать каналы и личные чаты.")
         }
+        .task {
+            guard let session = appModel.session else { return }
+            bindings = (try? await appModel.workspaceAPI.streamBindings(session: session)) ?? []
+        }
+        .task(id: selectedStream?.id) {
+            await loadTopics(for: selectedStream)
+        }
+        .onAppear {
+            if selectedStreamID == nil { selectedStreamID = filteredStreams.first?.id }
+        }
+        .onChange(of: filteredStreams.map(\.id)) { _, streamIDs in
+            if selectedStreamID.map({ streamIDs.contains($0) }) != true {
+                selectedStreamID = streamIDs.first
+            }
+        }
+        .onChange(of: appModel.realtimeRevision) { _, _ in
+            Task { await loadTopics(for: selectedStream, force: true) }
+        }
     }
 
-    private func folderChip(title: String, unreadCount: Int, id: String?) -> some View {
+    private var totalUnreadCount: Int {
+        appModel.streams.reduce(0) { $0 + max(0, $1.unreadCount) }
+    }
+
+    private var streamSubtitle: String {
+        guard let stream = selectedStream else { return "Каналы и личные чаты" }
+        if stream.isPrivate {
+            guard let userID = stream.directUserUUID,
+                  let user = appModel.users.first(where: { $0.id == userID })
+            else { return "Личный чат" }
+            return user.status == "offline" ? "Не в сети" : "В сети"
+        }
+        let streamBindings = bindings.filter { $0.streamUUID == stream.id }
+        let userIDs = Set(streamBindings.map(\.userUUID))
+        let onlineCount = appModel.users.filter {
+            userIDs.contains($0.id) && $0.status != "offline"
+        }.count
+        guard !streamBindings.isEmpty else { return "Канал" }
+        return "\(streamBindings.count) участников, \(onlineCount) в сети"
+    }
+
+    private func loadTopics(for stream: WorkspaceStream?, force: Bool = false) async {
+        guard let stream, let session = appModel.session else {
+            topics = []
+            return
+        }
+        if !force, loadingStreamID == stream.id { return }
+        loadingStreamID = stream.id
+        errorMessage = nil
+        do {
+            let loaded = try await appModel.workspaceAPI.topics(
+                session: session,
+                streamUUID: stream.id
+            )
+            guard selectedStream?.id == stream.id else { return }
+            topics = loaded.sorted { lhs, rhs in
+                if lhs.unreadCount != rhs.unreadCount { return lhs.unreadCount > rhs.unreadCount }
+                return lhs.updatedAt > rhs.updatedAt
+            }
+        } catch {
+            guard selectedStream?.id == stream.id else { return }
+            topics = []
+            errorMessage = "Не удалось загрузить темы"
+        }
+        if loadingStreamID == stream.id { loadingStreamID = nil }
+    }
+}
+
+private struct WorkspaceMessengerHeader: View {
+    let title: String
+    let subtitle: String
+    let onCompose: () -> Void
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 2) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(WorkspacePalette.text)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(WorkspacePalette.secondaryText)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 58)
+
+            HStack {
+                Spacer()
+                Button(action: onCompose) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 23, weight: .regular))
+                        .foregroundStyle(WorkspacePalette.secondaryText)
+                        .frame(width: 48, height: 48)
+                }
+                .accessibilityLabel("Новое сообщение")
+                .accessibilityIdentifier("newMessageButton")
+            }
+        }
+        .frame(height: 58)
+    }
+}
+
+private struct WorkspaceMessengerSearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17))
+                .foregroundStyle(WorkspacePalette.mobileIcon)
+            TextField("Найти", text: $text)
+                .font(.system(size: 16))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(WorkspacePalette.mobileIcon)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Очистить поиск")
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 42)
+        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Поиск")
+    }
+}
+
+private struct WorkspaceMessengerFolderTabs: View {
+    let folders: [WorkspaceFolder]
+    let selectedFolderID: String?
+    let allUnreadCount: Int
+    let onSelect: (String?) -> Void
+    let onAdd: () -> Void
+
+    private var visibleFolders: [WorkspaceFolder] {
+        folders.filter {
+            let title = $0.title.lowercased()
+            return !title.contains("all chat") && !title.contains("все чат")
+        }
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 24) {
+                tab(title: "Все чаты", count: allUnreadCount, id: nil)
+                ForEach(visibleFolders) { folder in
+                    tab(title: localizedFolderTitle(folder.title), count: folder.unreadCount, id: folder.id)
+                }
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(WorkspacePalette.mobileIcon)
+                        .frame(width: 38, height: 42)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Новая папка")
+            }
+            .padding(.horizontal, 12)
+        }
+        .frame(height: 44)
+    }
+
+    private func tab(title: String, count: Int, id: String?) -> some View {
         let selected = selectedFolderID == id
         return Button {
-            selectedFolderID = id
+            onSelect(id)
         } label: {
-            HStack(spacing: 6) {
-                Text(title)
-                if unreadCount > 0 {
-                    Text(unreadCount > 99 ? "99+" : String(unreadCount))
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(selected ? Color.white.opacity(0.22) : WorkspacePalette.primary.opacity(0.14), in: Capsule())
+            VStack(spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? WorkspacePalette.text : WorkspacePalette.mobileIcon)
+                    if count > 0 {
+                        WorkspaceUnreadBadge(count: count, compact: true)
+                    }
                 }
+                Rectangle()
+                    .fill(selected ? WorkspacePalette.text : .clear)
+                    .frame(height: 2)
             }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(selected ? .white : WorkspacePalette.text)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(selected ? WorkspacePalette.primary : WorkspacePalette.input, in: Capsule())
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            if let id,
-               let folder = appModel.folders.first(where: { $0.id == id }),
-               folder.systemType == nil || folder.systemType == "created" {
-                Button("Удалить папку", role: .destructive) {
-                    if selectedFolderID == id { selectedFolderID = nil }
-                    Task { await appModel.deleteFolder(folder) }
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func localizedFolderTitle(_ title: String) -> String {
+        switch title.lowercased() {
+        case "personal", "private", "личные чаты": "Личные"
+        case "channels", "каналы": "Каналы"
+        default: title
+        }
+    }
+}
+
+private struct WorkspaceStreamRail: View {
+    let streams: [WorkspaceStream]
+    let selectedStreamID: String?
+    let onSelect: (WorkspaceStream) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(streams) { stream in
+                    Button {
+                        onSelect(stream)
+                    } label: {
+                        WorkspaceMobileAvatar(stream: stream, size: 44)
+                            .frame(width: 58, height: 58)
+                            .background(
+                                selectedStreamID == stream.id ? WorkspacePalette.mobileCard : .clear,
+                                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(stream.name)
+                    .accessibilityAddTraits(selectedStreamID == stream.id ? .isSelected : [])
                 }
+            }
+            .padding(.vertical, 10)
+        }
+        .scrollIndicators(.hidden)
+    }
+}
+
+private struct WorkspaceMessengerTopics: View {
+    let stream: WorkspaceStream
+    let topics: [WorkspaceTopic]
+    let isLoading: Bool
+    let errorMessage: String?
+
+    private var defaultTopic: WorkspaceTopic? { topics.first(where: \.isDefault) }
+    private var visibleTopics: [WorkspaceTopic] { topics.filter { !$0.isDefault } }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if stream.isPrivate {
+                    NavigationLink(value: stream) {
+                        WorkspaceMessengerAllTopicsRow(title: stream.name, subtitle: "Личный чат")
+                    }
+                    .buttonStyle(.plain)
+                } else if let defaultTopic {
+                    NavigationLink(value: WorkspacePushConversationDestination(stream: stream, topic: defaultTopic)) {
+                        WorkspaceMessengerAllTopicsRow(title: "Все темы", subtitle: "Общий поток канала")
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    WorkspaceMessengerAllTopicsRow(title: "Все темы", subtitle: "Общий поток канала")
+                }
+
+                if isLoading, topics.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 34)
+                } else if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(WorkspacePalette.danger)
+                        .padding(20)
+                } else if visibleTopics.isEmpty, !stream.isPrivate {
+                    Text("Тем пока нет")
+                        .font(.subheadline)
+                        .foregroundStyle(WorkspacePalette.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 28)
+                } else {
+                    ForEach(visibleTopics) { topic in
+                        NavigationLink(value: WorkspacePushConversationDestination(stream: stream, topic: topic)) {
+                            WorkspaceMessengerTopicRow(topic: topic)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .background(WorkspacePalette.background)
+    }
+}
+
+private struct WorkspaceMessengerAllTopicsRow: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(WorkspacePalette.surfaceRaised)
+                .frame(width: 44, height: 44)
+                .overlay {
+                    Image(systemName: "house")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(WorkspacePalette.primary)
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(WorkspacePalette.text)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 14))
+                    .foregroundStyle(WorkspacePalette.secondaryText)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 68)
+    }
+}
+
+private struct WorkspaceMessengerTopicRow: View {
+    let topic: WorkspaceTopic
+
+    var body: some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(workspaceColor(topic.color))
+                .frame(width: 3, height: 48)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("# \(topic.name)")
+                        .font(.system(size: 16, weight: topic.unreadCount > 0 ? .semibold : .regular))
+                        .foregroundStyle(WorkspacePalette.text)
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(topicTime)
+                        .font(.system(size: 12))
+                        .foregroundStyle(WorkspacePalette.secondaryText)
+                }
+                HStack(spacing: 6) {
+                    Text(topic.isDone ? "Завершено" : "Обсуждение")
+                        .foregroundStyle(WorkspacePalette.primary)
+                    Spacer()
+                }
+                .font(.system(size: 12))
+            }
+            Spacer(minLength: 6)
+            if topic.unreadCount > 0 {
+                WorkspaceUnreadBadge(count: topic.unreadCount, compact: true)
+            }
+            Image(systemName: "bell")
+                .font(.system(size: 17))
+                .foregroundStyle(WorkspacePalette.mobileIcon)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 62)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(WorkspacePalette.separator)
+                .frame(height: 0.5)
+                .padding(.leading, 12)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var topicTime: String {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        guard let date = fractional.date(from: topic.updatedAt) ?? plain.date(from: topic.updatedAt) else {
+            return ""
+        }
+        if Calendar.current.isDateInToday(date) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(.dateTime.day().month())
+    }
+}
+
+private struct WorkspaceMobileAvatar: View {
+    let stream: WorkspaceStream
+    let size: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Circle()
+                .fill(workspaceColor(stream.color))
+                .frame(width: size, height: size)
+                .overlay {
+                    Text(String(stream.name.prefix(1)).uppercased())
+                        .font(.system(size: size * 0.36, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+            if stream.unreadCount > 0 {
+                WorkspaceUnreadBadge(count: stream.unreadCount, compact: true)
+                    .offset(x: 4, y: 3)
             }
         }
     }
+}
+
+private struct WorkspaceUnreadBadge: View {
+    let count: Int
+    var compact = false
+
+    var body: some View {
+        Text(count > 99 ? "99+" : String(max(0, count)))
+            .font(.system(size: compact ? 11 : 13, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? 5 : 7)
+            .frame(minWidth: compact ? 20 : 26, minHeight: compact ? 20 : 26)
+            .background(WorkspacePalette.unreadBadge, in: Capsule())
+    }
+}
+
+private func workspaceColor(_ value: Int) -> Color {
+    Color(
+        red: Double((value >> 16) & 0xFF) / 255,
+        green: Double((value >> 8) & 0xFF) / 255,
+        blue: Double(value & 0xFF) / 255
+    )
 }
 
 private struct WorkspaceNewChatView: View {
@@ -404,63 +762,6 @@ private struct WorkspaceNewChatView: View {
                 }
             }
         }
-    }
-}
-
-private struct WorkspaceStreamRow: View {
-    let stream: WorkspaceStream
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(streamColor)
-                    .frame(width: 46, height: 46)
-                    .overlay {
-                        Text(stream.name.prefix(1).uppercased())
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    }
-                if stream.isPrivate {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(4)
-                        .background(WorkspacePalette.secondaryText, in: Circle())
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(stream.name)
-                    .font(.body.weight(stream.unreadCount > 0 ? .semibold : .regular))
-                    .foregroundStyle(WorkspacePalette.text)
-                    .lineLimit(1)
-                if let description = stream.description, !description.isEmpty {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundStyle(WorkspacePalette.secondaryText)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 8)
-            if stream.unreadCount > 0 {
-                Text(stream.unreadCount > 99 ? "99+" : String(stream.unreadCount))
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 24)
-                    .background(WorkspacePalette.primary, in: Capsule())
-                    .accessibilityLabel("Непрочитанных: \(stream.unreadCount)")
-            }
-        }
-        .padding(.vertical, 5)
-    }
-
-    private var streamColor: Color {
-        let red = Double((stream.color >> 16) & 0xFF) / 255
-        let green = Double((stream.color >> 8) & 0xFF) / 255
-        let blue = Double(stream.color & 0xFF) / 255
-        return Color(red: red, green: green, blue: blue)
     }
 }
 

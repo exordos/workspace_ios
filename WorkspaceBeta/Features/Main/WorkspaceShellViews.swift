@@ -6,60 +6,58 @@ struct WorkspaceBottomNavigation: View {
     @Binding var selectedTab: WorkspaceTab
 
     var body: some View {
-        GeometryReader { geometry in
-            let itemWidth = max(44, (geometry.size.width - 40) / 5)
-
-            HStack(spacing: 4) {
-                ForEach(WorkspaceTab.allCases, id: \.self) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        Group {
-                            if tab == .profile {
-                                profileIcon
-                            } else {
-                                Image(systemName: selectedTab == tab ? tab.selectedSystemImage : tab.systemImage)
-                                    .font(.system(size: 25, weight: .medium))
-                            }
+        HStack(spacing: 6) {
+            ForEach(WorkspaceTab.allCases, id: \.self) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Group {
+                        if tab == .profile {
+                            profileIcon
+                        } else {
+                            Image(systemName: selectedTab == tab ? tab.selectedSystemImage : tab.systemImage)
+                                .font(.system(size: 27, weight: .medium))
+                                .symbolRenderingMode(.monochrome)
                         }
-                        .foregroundStyle(selectedTab == tab ? WorkspacePalette.primary : WorkspacePalette.secondaryText)
-                        .frame(maxWidth: .infinity, minHeight: 54)
-                        .background {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(selectedTab == tab ? WorkspacePalette.surfaceRaised : .clear)
-                        }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: itemWidth)
-                    .accessibilityLabel(tab.title)
-                    .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
-                    .accessibilityIdentifier("\(String(describing: tab))Tab")
+                    .foregroundStyle(selectedTab == tab ? Color.white : WorkspacePalette.mobileIcon)
+                    .frame(width: 54, height: 54)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(selectedTab == tab ? WorkspacePalette.mobileSelection : .clear)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                .accessibilityIdentifier("\(String(describing: tab))Tab")
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .frame(height: 66)
-        .background(WorkspacePalette.surface)
-        .clipShape(.rect(topLeadingRadius: 14, topTrailingRadius: 14))
+        .background(WorkspacePalette.mobileNavigation)
+        .background {
+            WorkspacePalette.mobileNavigation
+                .ignoresSafeArea(edges: .bottom)
+        }
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(WorkspacePalette.separator.opacity(0.55))
                 .frame(height: 0.5)
         }
-        .shadow(color: .black.opacity(0.16), radius: 14, y: -2)
     }
 
     private var profileIcon: some View {
         Circle()
-            .fill(WorkspacePalette.primary.opacity(selectedTab == .profile ? 0.24 : 0.12))
-            .frame(width: 34, height: 34)
+            .fill(selectedTab == .profile ? Color.white.opacity(0.20) : WorkspacePalette.mobileIcon.opacity(0.22))
+            .frame(width: 36, height: 36)
             .overlay {
                 Text(initials)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(selectedTab == .profile ? WorkspacePalette.primary : WorkspacePalette.secondaryText)
+                    .foregroundStyle(selectedTab == .profile ? Color.white : WorkspacePalette.mobileIcon)
             }
     }
 
@@ -161,20 +159,22 @@ struct WorkspaceMyActivityView: View {
                 accessibilityLabel: "Поиск по моей активности"
             )
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.bottom, 6)
 
             WorkspaceFolderStrip(
                 folders: appModel.folders,
                 selectedFolderID: selectedFolderID,
+                allUnreadCount: totalUnreadCount,
                 onSelect: { folderID in
                     selectedFolderID = folderID
-                    onOpenMessenger()
                 },
                 onAdd: { showingCreateFolder = true }
             )
 
+            Divider().overlay(WorkspacePalette.separator)
+
             ScrollView {
-                LazyVStack(spacing: 4) {
+                LazyVStack(spacing: 8) {
                     if destinations.isEmpty {
                         ContentUnavailableView.search(text: searchText)
                             .padding(.top, 48)
@@ -191,7 +191,7 @@ struct WorkspaceMyActivityView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 6)
+                .padding(.top, 10)
                 .padding(.bottom, 16)
             }
             .scrollIndicators(.hidden)
@@ -257,10 +257,10 @@ private struct WorkspaceCompactSearchField: View {
                 .accessibilityLabel("Очистить поиск")
             }
         }
-        .font(.system(size: 14))
+        .font(.system(size: 16))
         .padding(.horizontal, 10)
-        .frame(height: 36)
-        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(height: 42)
+        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -269,29 +269,36 @@ private struct WorkspaceCompactSearchField: View {
 private struct WorkspaceFolderStrip: View {
     let folders: [WorkspaceFolder]
     let selectedFolderID: String?
+    let allUnreadCount: Int
     let onSelect: (String?) -> Void
     let onAdd: () -> Void
 
+    private var visibleFolders: [WorkspaceFolder] {
+        folders.filter {
+            let title = $0.title.lowercased()
+            return !title.contains("all chat") && !title.contains("все чат")
+        }
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(title: "Все", count: nil, id: nil)
-                ForEach(folders) { folder in
-                    chip(title: folder.title, count: folder.unreadCount, id: folder.id)
+            HStack(spacing: 24) {
+                chip(title: "Все чаты", count: allUnreadCount, id: nil)
+                ForEach(visibleFolders) { folder in
+                    chip(title: localizedTitle(folder.title), count: folder.unreadCount, id: folder.id)
                 }
                 Button(action: onAdd) {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(WorkspacePalette.secondaryText)
-                        .frame(width: 34, height: 34)
-                        .background(WorkspacePalette.input, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(WorkspacePalette.mobileIcon)
+                        .frame(width: 38, height: 42)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Новая папка")
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 4)
         }
+        .frame(height: 44)
     }
 
     private func chip(title: String, count: Int?, id: String?) -> some View {
@@ -299,22 +306,36 @@ private struct WorkspaceFolderStrip: View {
         return Button {
             onSelect(id)
         } label: {
-            HStack(spacing: 5) {
-                Text(title)
-                if let count, count > 0 {
-                    Text(count > 99 ? "99+" : String(count))
-                        .font(.caption2.bold())
+            VStack(spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(title)
+                    if let count, count > 0 {
+                        Text(count > 99 ? "99+" : String(count))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(WorkspacePalette.unreadBadge, in: Capsule())
+                    }
                 }
+                .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? WorkspacePalette.text : WorkspacePalette.mobileIcon)
+                Rectangle()
+                    .fill(selected ? WorkspacePalette.text : .clear)
+                    .frame(height: 2)
             }
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(selected ? Color.white : WorkspacePalette.text)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background(selected ? WorkspacePalette.primary : WorkspacePalette.input, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func localizedTitle(_ title: String) -> String {
+        switch title.lowercased() {
+        case "personal", "private", "личные чаты": "Личные"
+        case "channels", "каналы": "Каналы"
+        default: title
+        }
     }
 }
 
@@ -323,37 +344,33 @@ private struct WorkspaceActivityRow: View {
     let unreadCount: Int
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             Circle()
                 .fill(destination.tint)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .overlay {
                     Image(systemName: destination.systemImage)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
                 }
                 .accessibilityHidden(true)
             Text(destination.title)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(WorkspacePalette.text)
                 .lineLimit(1)
             Spacer(minLength: 8)
             if unreadCount > 0 {
                 Text(unreadCount > 999 ? "999+" : String(unreadCount))
-                    .font(.caption.bold())
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 7)
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(WorkspacePalette.primary, in: Capsule())
+                    .frame(minWidth: 26, minHeight: 26)
+                    .background(WorkspacePalette.unreadBadge, in: Capsule())
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(WorkspacePalette.secondaryText.opacity(0.65))
-                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 44)
-        .background(WorkspacePalette.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 10)
+        .frame(minHeight: 54)
+        .background(WorkspacePalette.mobileCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -429,35 +446,48 @@ private struct WorkspaceInboxView: View {
                     description: Text("Непрочитанных сообщений сейчас нет.")
                 )
             } else {
-                List {
-                    ForEach(unreadStreams) { stream in
-                        Section(stream.isPrivate ? stream.name : "#\(stream.name)") {
-                            let unreadTopics = topicsByStream[stream.id, default: []].filter { $0.unreadCount > 0 }
-                            if unreadTopics.isEmpty {
-                                NavigationLink {
-                                    destination(for: stream)
-                                } label: {
-                                    WorkspaceInboxRow(title: stream.name, unreadCount: stream.unreadCount)
-                                }
-                            } else {
-                                ForEach(unreadTopics) { topic in
-                                    NavigationLink {
-                                        conversation(stream: stream, topic: topic)
-                                    } label: {
-                                        WorkspaceInboxRow(title: topic.name, unreadCount: topic.unreadCount)
-                                    }
-                                }
-                            }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            Text("КАНАЛЫ")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(WorkspacePalette.secondaryText)
+                            Rectangle()
+                                .fill(WorkspacePalette.separator)
+                                .frame(height: 1)
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 2)
+
+                        ForEach(unreadStreams) { stream in
+                            WorkspaceInboxStreamCard(
+                                stream: stream,
+                                topics: topicsByStream[stream.id, default: []].filter { $0.unreadCount > 0 },
+                                streamDestination: { destination(for: stream) },
+                                topicDestination: { topic in conversation(stream: stream, topic: topic) }
+                            )
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 14)
+                    .padding(.bottom, 20)
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
             }
         }
         .background(WorkspacePalette.background)
         .navigationTitle("Входящие")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await load() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .accessibilityLabel("Обновить входящие")
+            }
+        }
         .refreshable { await load() }
         .overlay(alignment: .bottom) {
             if let errorMessage {
@@ -526,34 +556,129 @@ private struct WorkspaceInboxView: View {
     }
 }
 
-private struct WorkspaceInboxRow: View {
-    let title: String
-    let unreadCount: Int
+private struct WorkspaceInboxStreamCard<StreamDestination: View, TopicDestination: View>: View {
+    let stream: WorkspaceStream
+    let topics: [WorkspaceTopic]
+    @ViewBuilder let streamDestination: () -> StreamDestination
+    @ViewBuilder let topicDestination: (WorkspaceTopic) -> TopicDestination
+
+    var body: some View {
+        VStack(spacing: 0) {
+            NavigationLink {
+                streamDestination()
+            } label: {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(inboxColor(stream.color))
+                        .frame(width: 36, height: 36)
+                        .overlay {
+                            Text(String(stream.name.prefix(1)).uppercased())
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    Text(stream.isPrivate ? stream.name : "#\(stream.name)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(WorkspacePalette.text)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    WorkspaceInboxBadge(count: stream.unreadCount)
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 58)
+            }
+            .buttonStyle(.plain)
+
+            if topics.isEmpty {
+                Divider().padding(.leading, 58)
+                Text("Непрочитанные сообщения канала")
+                    .font(.system(size: 14))
+                    .foregroundStyle(WorkspacePalette.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+            } else {
+                ForEach(topics) { topic in
+                    Divider().padding(.leading, 58)
+                    NavigationLink {
+                        topicDestination(topic)
+                    } label: {
+                        WorkspaceInboxTopicRow(topic: topic)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .background(WorkspacePalette.mobileCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(WorkspacePalette.separator, lineWidth: 1)
+        }
+    }
+}
+
+private struct WorkspaceInboxTopicRow: View {
+    let topic: WorkspaceTopic
 
     var body: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(WorkspacePalette.primary.opacity(0.18))
+                .fill(inboxColor(topic.color).opacity(0.18))
                 .frame(width: 34, height: 34)
                 .overlay {
                     Image(systemName: "bubble.left.fill")
                         .font(.system(size: 14))
-                        .foregroundStyle(WorkspacePalette.primary)
+                        .foregroundStyle(inboxColor(topic.color))
                 }
-            Text(title)
-                .font(.body.weight(.medium))
-                .foregroundStyle(WorkspacePalette.text)
-                .lineLimit(2)
-            Spacer()
-            Text(unreadCount > 99 ? "99+" : String(max(0, unreadCount)))
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .frame(minHeight: 24)
-                .background(WorkspacePalette.primary, in: Capsule())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(topic.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(WorkspacePalette.text)
+                    .lineLimit(1)
+                if !topicTime.isEmpty {
+                    Text(topicTime)
+                        .font(.system(size: 12))
+                        .foregroundStyle(WorkspacePalette.secondaryText)
+                }
+            }
+            Spacer(minLength: 8)
+            WorkspaceInboxBadge(count: topic.unreadCount)
         }
-        .padding(.vertical, 3)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 54)
     }
+
+    private var topicTime: String {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        guard let date = fractional.date(from: topic.updatedAt) ?? plain.date(from: topic.updatedAt) else {
+            return ""
+        }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+private struct WorkspaceInboxBadge: View {
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            Text(count > 99 ? "99+" : String(count))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .frame(minWidth: 22, minHeight: 22)
+                .background(WorkspacePalette.unreadBadge, in: Capsule())
+        }
+    }
+}
+
+private func inboxColor(_ value: Int) -> Color {
+    Color(
+        red: Double((value >> 16) & 0xFF) / 255,
+        green: Double((value >> 8) & 0xFF) / 255,
+        blue: Double(value & 0xFF) / 255
+    )
 }
 
 private struct WorkspaceActivityTimelineView: View {

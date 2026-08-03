@@ -119,18 +119,17 @@ final class WorkspaceBetaUITests: XCTestCase {
         app.navigationBars["Входящие"].buttons.element(boundBy: 0).tap()
 
         app.buttons["messengerTab"].tap()
-        XCTAssertTrue(app.navigationBars["Мессенджер"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["newMessageButton"].waitForExistence(timeout: 20))
         settle()
         capture(app, name: "04 Messenger")
 
-        let sandboxStream = app.staticTexts["песочница"].firstMatch
+        let sandboxStream = app.buttons["песочница"].firstMatch
         XCTAssertTrue(sandboxStream.waitForExistence(timeout: 20))
         sandboxStream.tap()
-        XCTAssertTrue(app.navigationBars["песочница"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Все темы"].waitForExistence(timeout: 20))
         settle()
         assertBottomNavigationVisible(app)
         capture(app, name: "05 Topics")
-        app.navigationBars["песочница"].buttons.element(boundBy: 0).tap()
 
         app.buttons["calendarTab"].tap()
         XCTAssertTrue(app.otherElements["calendarComingSoon"].waitForExistence(timeout: 10))
@@ -146,6 +145,48 @@ final class WorkspaceBetaUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Профиль"].waitForExistence(timeout: 10))
         settle()
         capture(app, name: "08 Profile")
+    }
+
+    @MainActor
+    func testAuthenticatedShellUsesOneBottomNavigation() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        guard app.buttons["activityTab"].waitForExistence(timeout: 15) else {
+            throw XCTSkip("A signed-in Workspace session is required for shell visual verification.")
+        }
+
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 01 My Activity")
+
+        let inbox = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Входящие"))
+            .firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 10))
+        inbox.tap()
+        XCTAssertTrue(app.navigationBars["Входящие"].waitForExistence(timeout: 20))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 02 Inbox")
+        app.navigationBars["Входящие"].buttons.element(boundBy: 0).tap()
+
+        app.buttons["messengerTab"].tap()
+        XCTAssertTrue(app.buttons["newMessageButton"].waitForExistence(timeout: 20))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 03 Messenger Topics")
+
+        app.buttons["calendarTab"].tap()
+        XCTAssertTrue(app.otherElements["calendarComingSoon"].waitForExistence(timeout: 10))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 04 Calendar")
+
+        app.buttons["mailTab"].tap()
+        XCTAssertTrue(app.otherElements["mailComingSoon"].waitForExistence(timeout: 10))
+        settle()
+        assertBottomNavigationVisible(app)
+        capture(app, name: "Shell 05 Mail")
     }
 
     @MainActor
@@ -191,7 +232,9 @@ final class WorkspaceBetaUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        XCTAssertEqual(app.tabBars.count, 0, "The system UITabBar must not coexist with Workspace navigation", file: file, line: line)
         let identifiers = ["activityTab", "messengerTab", "calendarTab", "mailTab", "profileTab"]
+        var minimumYValues: [CGFloat] = []
         for identifier in identifiers {
             let button = app.buttons[identifier]
             XCTAssertTrue(button.exists, "Missing \(identifier)", file: file, line: line)
@@ -199,6 +242,15 @@ final class WorkspaceBetaUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(button.frame.width, 44, file: file, line: line)
             XCTAssertGreaterThanOrEqual(button.frame.minX, 0, file: file, line: line)
             XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX + 0.5, file: file, line: line)
+            minimumYValues.append(button.frame.minY)
+        }
+        if let firstY = minimumYValues.first {
+            XCTAssertTrue(
+                minimumYValues.allSatisfy { abs($0 - firstY) < 1 },
+                "Bottom navigation items must share one baseline",
+                file: file,
+                line: line
+            )
         }
     }
 
