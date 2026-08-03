@@ -11,8 +11,9 @@ import JitsiMeetSDK
 
 
 struct JitsiMeetViewWrapper: UIViewRepresentable {
-    var room: String
-    var readyToClose: () -> Void
+    let serverURL: URL
+    let room: String
+    let readyToClose: () -> Void
 
     func makeCoordinator() -> Coordinator {
         return Coordinator(self)
@@ -23,7 +24,9 @@ struct JitsiMeetViewWrapper: UIViewRepresentable {
         view.delegate = context.coordinator
 
         let options = JitsiMeetConferenceOptions.fromBuilder { (builder) in
+            builder.serverURL = serverURL
             builder.room = room
+            builder.setFeatureFlag("welcomepage.enabled", withValue: false)
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -34,6 +37,10 @@ struct JitsiMeetViewWrapper: UIViewRepresentable {
 
     func updateUIView(_ uiView: JitsiMeetView, context: Context) { }
 
+    static func dismantleUIView(_ uiView: JitsiMeetView, coordinator: Coordinator) {
+        uiView.hangUp()
+    }
+
     class Coordinator: NSObject, JitsiMeetViewDelegate {
         var parent: JitsiMeetViewWrapper
 
@@ -42,7 +49,6 @@ struct JitsiMeetViewWrapper: UIViewRepresentable {
         }
 
         func ready(toClose data: [AnyHashable : Any]!) {
-            print("Ready to close!")
             DispatchQueue.main.async {
                 self.parent.readyToClose()
             }
