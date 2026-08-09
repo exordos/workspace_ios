@@ -2,7 +2,6 @@
 //  UserProfile.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 19.02.2026.
 //
 
 import Foundation
@@ -11,18 +10,21 @@ import Combine
 
 class UserProfile: ObservableObject {
 
-    @Published var apiKey: String? {
+    @Published var accessToken: String? {
         didSet {
-            try? setToKeychain(value: apiKey, key: .apiKeyKey)
+            try? setToKeychain(value: accessToken, key: .accessTokenKey)
         }
     }
 
-    var userId: Int? {
-        get {
-            return UserDefaults.standard.integer(forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
+    var refreshToken: String? {
+        didSet {
+            try? setToKeychain(value: refreshToken, key: .refreshTokenKey)
         }
-        set {
-            UserDefaults.standard.set(newValue, forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
+    }
+
+    var userId: Int {
+        didSet {
+            UserDefaults.standard.set(userId, forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
             UserDefaults.standard.synchronize()
         }
     }
@@ -48,15 +50,18 @@ class UserProfile: ObservableObject {
     }
 
     init() {
-        self.apiKey = try? getValueFromKeychain(for: .apiKeyKey)
+        self.userId = UserDefaults.standard.integer(forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
+        self.accessToken = try? getValueFromKeychain(for: .accessTokenKey)
+        self.refreshToken = try? getValueFromKeychain(for: .refreshTokenKey)
     }
 
     func clearData() {
         DispatchQueue.main.async { [weak self] in
             self?.baseUrl = nil
-            self?.userId = nil
             self?.userEmail = nil
-            self?.apiKey = nil
+            self?.accessToken = nil
+            self?.refreshToken = nil
+            self?.userId = 0
         }
     }
 
@@ -76,7 +81,8 @@ class UserProfile: ObservableObject {
 }
 
 enum UserProfileKeichainKey: String {
-    case apiKeyKey
+    case accessTokenKey
+    case refreshTokenKey
 }
 
 enum UserProfileUserDefaultsKey: String {

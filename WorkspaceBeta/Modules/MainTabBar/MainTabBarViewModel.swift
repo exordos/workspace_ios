@@ -2,7 +2,6 @@
 //  MainTabBarViewModel.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 24.02.2026.
 //
 
 import SwiftUI
@@ -14,7 +13,8 @@ final class MainTabBarViewModel: MainTabBarViewModelProtocol, ObservableObject {
 
     private let apiClient: APIClient
     @Published private(set) var model: MainTabBar
-    @Published private(set) var userProfile: UserProfile
+    let userProfile: UserProfile
+    let eventHandler: EventHandler
 
     lazy var voiceCallViewModel: VoiceCallViewModel = {
         let model = VoiceCall()
@@ -33,12 +33,12 @@ final class MainTabBarViewModel: MainTabBarViewModelProtocol, ObservableObject {
 
     lazy var chatChannelsViewModel: ChatChannelsViewModel = {
         let model = ChatChannels()
-        return ChatChannelsViewModel(apiClient: apiClient, model: model, userProfile: userProfile)
+        return ChatChannelsViewModel(apiClient: apiClient, model: model, userProfile: userProfile, eventHandler: eventHandler)
     }()
 
     lazy var profileViewModel: ProfileViewModel = {
         let model = Profile()
-        return ProfileViewModel(apiClient: apiClient, model: model)
+        return ProfileViewModel(apiClient: apiClient, model: model, userProfile: userProfile)
     }()
 
 
@@ -46,6 +46,7 @@ final class MainTabBarViewModel: MainTabBarViewModelProtocol, ObservableObject {
         self.apiClient = apiClient
         self.model = model
         self.userProfile = userProfile
+        self.eventHandler = EventHandler(apiClient: apiClient)
     }
 }
 

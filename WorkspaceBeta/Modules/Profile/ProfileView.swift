@@ -2,7 +2,6 @@
 //  ProfileView.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 28.03.2026.
 //  
 //
 
@@ -14,6 +13,13 @@ struct ProfileView: View {
     @ObservedObject var viewModel: ProfileViewModel
 
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        VStack {
+            Button {
+                viewModel.logout()
+            } label: {
+                Text("Выйти")
+            }
+
+        }
     }
 }

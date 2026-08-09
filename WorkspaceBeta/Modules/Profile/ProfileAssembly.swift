@@ -2,7 +2,6 @@
 //  ProfileAssembly.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 28.03.2026.
 //  
 //
 
@@ -10,9 +9,9 @@ import SwiftUI
 
 struct ProfileAssembly {
 
-    func assemble() -> some View {
+    func assemble(with userProfile: UserProfile) -> some View {
         let model = Profile()
-        let viewModel = ProfileViewModel(apiClient: WorkspaceAPIClient.current, model: model)
+        let viewModel = ProfileViewModel(apiClient: WorkspaceAPIClient.current, model: model, userProfile: userProfile)
         let view = ProfileView(viewModel: viewModel)
         return view
     }

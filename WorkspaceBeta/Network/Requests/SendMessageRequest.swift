@@ -2,7 +2,6 @@
 //  SendMessageRequest.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 25.03.2026.
 //
 
 import Foundation
@@ -11,31 +10,36 @@ struct SendMessageRequest: APIRequest {
     typealias Response = SendMessageResponseData
     typealias ResponseError = EmptyDecodableError
 
-    let type: String
-    let to: String
-    let content: String
-    let topic: String?
+    let streamUuid: String
+    let topicUuid: String?
+    let payload: MessageRequestDataPayload
+
+    enum CodingKeys: String, CodingKey {
+        case streamUuid = "stream_uuid"
+        case topicUuid = "topic_uuid"
+        case payload
+    }
 
     var resource: ResourceType {
-        return .relative("/api/v1/messages")
+        return .relative("/api/workspace/v1/messenger/messages/")
     }
 
     var method: HTTPMethod {
         return .post
     }
 
-    var requiresApiKey: Bool {
-        return true
-    }
-
-    init(type: String, to: String, content: String, topic: String? = nil) {
-        self.type = type
-        self.to = to
-        self.content = content
-        self.topic = topic
+    init(streamUuid: String, topicUuid: String?, content: String) {
+        self.streamUuid = streamUuid
+        self.topicUuid = topicUuid
+        self.payload = .init(kind: "markdown", content: content)
     }
 }
 
+struct MessageRequestDataPayload: Encodable {
+    let kind: String
+    let content: String
+}
+
 struct SendMessageResponseData: Decodable {
-    let id: Int
+    let uuid: String
 }

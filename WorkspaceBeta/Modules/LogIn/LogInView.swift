@@ -2,7 +2,6 @@
 //  LogInView.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 22.02.2026.
 //
 
 import SwiftUI
@@ -14,31 +13,39 @@ struct LogInView: View {
     }
 
     @ObservedObject var viewModel: LogInViewModel
+    @Environment(\.presentationMode) var presentationMode
 
     @State var needToRegister = false
 
     var body: some View {
         NavigationView {
-            ZStack(alignment: .topLeading) {
-                background
-                .edgesIgnoringSafeArea(.top)
-                VStack(alignment: .leading) {
-                    Image("logo")
-                        .padding(.leading, -16)
-                    title
+            VStack(alignment: .center) {
+                Image("serverIcon")
+                    .resizable()
+                    .frame(width: 116, height: 116)
+                    .padding(.top, 100)
+                title
+                organizationUrl
+                loginField
+                    .padding(.top, 24)
+                passwordField
+                    .padding(.top, 24)
+
+                if viewModel.needsOtp {
+                    otpField
                         .padding(.top, 24)
-                    loginField
-                        .padding(.top, 24)
-                    passwordField
-                        .padding(.top, 24)
-                    signInButton
-                        .padding(.top, 24)
-                    Spacer()
                 }
-                .padding(.horizontal, 16)
+
+                signInButton
+                    .padding(.top, 24)
+                logoutButton
+                    .padding(.vertical, 10.0)
+                Spacer()
             }
+            .padding(.horizontal, 16)
             .edgesIgnoringSafeArea(.horizontal)
             .navigationBarHidden(true)
+            .showLoader(viewModel.loadingState == .loading)
             .onTapGesture {
                 UIApplication.shared.endEditing()
             }
@@ -49,19 +56,19 @@ struct LogInView: View {
 //        .accentColor(Color.primary500)
     }
 
-    var background: some View {
-        VStack(alignment: .trailing) {
-            Image("backgroundNeutral")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-            Spacer()
-        }
+    var title: some View {
+        Text("Название организации")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundColor(Color.textHeaders)
+            .padding(.vertical, 10.0)
     }
 
-    var title: some View {
-        Text(String.title)
-//            .font(DesignSystemFont.semibold32Display)
-//            .foregroundColor(Color.neutral900)
+    var organizationUrl: some View {
+        Text(viewModel.userProfile.baseUrl ?? "")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundColor(Color.textAdditional50)
+            .padding(.vertical, 10.0)
+            .padding(.horizontal, 20.0)
     }
 
     var loginField: some View {
@@ -72,19 +79,21 @@ struct LogInView: View {
         CommonInputView(viewModel: viewModel.passwordFieldViewModel, text: $viewModel.model.password)
     }
 
+    var otpField: some View {
+        CommonInputView(viewModel: viewModel.otpFieldViewModel, text: $viewModel.model.otp)
+    }
+
     var signInButton: some View {
-        PrimaryButton(title: "login_button", action: viewModel.signIn)
+        PrimaryButton(title: "Логин", action: viewModel.signIn)
             .accessibilityIdentifier("loginButton")
     }
-}
 
-// MARK: - Localization
-private extension String {
-    static let title = NSLocalizedString("login_title", comment: "Заголовок экрана входа")
-    static let forgotPasswordTitle = NSLocalizedString("login_forgot_password", comment: "Кнопка для перехода на экран восстановления пароля")
-    static let signInButton = NSLocalizedString("login_button", comment: "Кнопка входа в аккаунт")
+    var logoutButton: some View {
+        DestructiveButton(title: "Выйти из организации") {
+            presentationMode.wrappedValue.dismiss()
+        }
+    }
 }
-
 
 
 extension UIApplication {

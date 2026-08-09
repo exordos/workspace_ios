@@ -2,7 +2,6 @@
 //  ChatAssembly.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 24.02.2026.
 //  
 //
 
@@ -10,9 +9,12 @@ import SwiftUI
 
 struct ChatAssembly {
 
-    func assemble(chatTitle: String, chatId: String, topic: String? = nil, isDirectMessages: Bool) -> some View {
-        let model = Chat(chatTitle: chatTitle, chatId: chatId, topic: topic, isDirectMessages: isDirectMessages)
-        let viewModel = ChatViewModel(apiClient: WorkspaceAPIClient.current, model: model)
+    func assemble(stream: StreamData,
+                  topic: TopicsResponseData,
+                  isDirectMessages: Bool,
+                  eventHandler: EventHandler) -> some View {
+        let model = Chat(stream: stream, topic: topic)
+        let viewModel = ChatViewModel(apiClient: WorkspaceAPIClient.current, model: model, eventHandler: eventHandler)
         let view = ChatView(viewModel: viewModel)
         return view
     }

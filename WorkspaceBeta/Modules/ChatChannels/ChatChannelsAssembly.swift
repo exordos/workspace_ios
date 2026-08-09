@@ -2,7 +2,6 @@
 //  ChatChannelsAssembly.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 25.03.2026.
 //  
 //
 
@@ -10,9 +9,9 @@ import SwiftUI
 
 struct ChatChannelsAssembly {
 
-    func assemble(with userProfile: UserProfile) -> some View {
+    func assemble(with userProfile: UserProfile, eventHandler: EventHandler) -> some View {
         let model = ChatChannels()
-        let viewModel = ChatChannelsViewModel(apiClient: WorkspaceAPIClient.current, model: model, userProfile: userProfile)
+        let viewModel = ChatChannelsViewModel(apiClient: WorkspaceAPIClient.current, model: model, userProfile: userProfile, eventHandler: eventHandler)
         let view = ChatChannelsView(viewModel: viewModel)
         return view
     }

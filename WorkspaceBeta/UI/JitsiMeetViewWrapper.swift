@@ -2,7 +2,6 @@
 //  JitsiMeetViewWrapper.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 29.03.2026.
 //
 
 import SwiftUI

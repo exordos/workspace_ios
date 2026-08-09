@@ -2,7 +2,6 @@
 //  WorkspaceBetaUITestsLaunchTests.swift
 //  WorkspaceBetaUITests
 //
-//  Created by Evgenii Vedenin on 19.02.2026.
 //
 
 import XCTest

@@ -2,136 +2,88 @@
 //  MessagesRequest.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 25.03.2026.
 //
 
 import Foundation
 
 struct MessagesRequest: APIRequest {
-    typealias Response = MessagesResponseData
+    typealias Response = [MessageResponseData]
     typealias ResponseError = EmptyDecodableError
 
-    let anchor: String
-    let numBefore: String
-    let numAfter: String
-    let narrow: String
-    let applyMarkdown: String
+    let streamUuid: String
+    let topicUuid: String
 
     enum CodingKeys: String, CodingKey {
-        case anchor
-        case numBefore = "num_before"
-        case numAfter = "num_after"
-        case narrow
-        case applyMarkdown = "apply_markdown"
+        case streamUuid = "stream_uuid"
+        case topicUuid = "topic_uuid"
     }
 
     var resource: ResourceType {
-        return .relative("/api/v1/messages")
+        return .relative("/api/workspace/v1/messenger/messages/")
     }
 
     var method: HTTPMethod {
         return .get
     }
 
-    init(anchor: String,
-         numBefore: String,
-         numAfter: String,
-         narrow: String,
-         applyMarkdown: String) {
-        self.anchor = anchor
-        self.numBefore = numBefore
-        self.numAfter = numAfter
-        self.narrow = narrow
-        self.applyMarkdown = applyMarkdown
+    init(streamUuid: String, topicUuid: String) {
+        self.streamUuid = streamUuid
+        self.topicUuid = topicUuid
     }
 }
 
-struct MessagesResponseData: Decodable {
-    let messages: [MessageData]
+struct MessagesByIdsRequest: APIRequest {
+    typealias Response = [MessageResponseData]
+    typealias ResponseError = EmptyDecodableError
+
+    let uuid: [String]
+
+    var resource: ResourceType {
+        return .relative("/api/workspace/v1/messenger/messages/")
+    }
+
+    var method: HTTPMethod {
+        return .get
+    }
+
+    init(messageIds: [String]) {
+        self.uuid = messageIds
+    }
 }
 
-enum MessageData: Decodable {
-    case direct(DirectMessageData)
-    case channel(ChannelMessageData)
+
+struct MessageResponseData: Decodable, Hashable {
+    let uuid: String
+    let updatedAt: Date
+    let createdAt: Date
+    let streamUuid: String
+    let topicUuid: String
+    var payload: MessageResponsePayload
+    let isOwn: Bool
+    let authorUuid: String
+    var reactions: [String: Int]
+    var author: UserResponseData?
+
 
     enum CodingKeys: String, CodingKey {
-        case type
-    }
-
-    enum MessageType: String, Decodable {
-        case `private`
-        case channel
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        let type = try container.decode(MessageType.self, forKey: .type)
-
-        switch type {
-        case .private:
-            let value = try DirectMessageData(from: decoder)
-            self = .direct(value)
-        case .channel:
-            let value = try ChannelMessageData(from: decoder)
-            self = .channel(value)
-        }
+        case uuid
+        case updatedAt = "updated_at"
+        case createdAt = "created_at"
+        case streamUuid = "stream_uuid"
+        case topicUuid = "topic_uuid"
+        case payload
+        case isOwn = "is_own"
+        case authorUuid = "author_uuid"
+        case reactions
     }
 }
 
-struct DirectMessageData: Decodable {
-    let id: Int
-    let senderFullName: String
-    let senderId: Int
+struct MessageResponsePayload: Decodable, Hashable {
+
+    enum Kind: String, Decodable {
+        case markdown
+    }
+
+    let kind: Kind
     let content: String
-    let timestamp: Int
-    let avatarUrl: String
-    let subject: String
-    let displayRecipient: [DisplayRecipient]
-
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case senderFullName = "sender_full_name"
-        case senderId = "sender_id"
-        case content
-        case timestamp
-        case avatarUrl = "avatar_url"
-        case subject
-        case displayRecipient = "display_recipient"
-    }
-}
-
-struct DisplayRecipient: Decodable, Hashable {
-    let id: Int
-    let email: String
-    let fullName: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case fullName = "full_name"
-        case email
-    }
-}
-
-struct ChannelMessageData: Decodable {
-    let id: Int
-    let senderFullName: String
-    let senderId: Int
-    let content: String
-    let timestamp: Int
-    let avatarUrl: String
-    let subject: String
-    let displayRecipient: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case senderFullName = "sender_full_name"
-        case senderId = "sender_id"
-        case content
-        case timestamp
-        case avatarUrl = "avatar_url"
-        case subject
-        case displayRecipient = "display_recipient"
-    }
 }

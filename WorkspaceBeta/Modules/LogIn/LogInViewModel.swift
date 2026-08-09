@@ -2,7 +2,6 @@
 //  LogInViewModel.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 22.02.2026.
 //
 
 import SwiftUI
@@ -13,16 +12,14 @@ protocol LogInViewModelProtocol {
 }
 
 class LogInViewModel: LogInViewModelProtocol, ObservableObject {
-
-    private let apiClient: APIClient
+    private var apiClient: APIClient
     @Published var model: LogIn
     @Published var urlToShow: URL?
     @Published var forgotPassword = false
+    @Published var needsOtp = false
     let userProfile: UserProfile
     private var forgottenEmailString: String?
-    @Published var shouldShowConfirmEmailScene = false
-    @Published var shouldShowEnterPhoneScene = false
-    @Published var shouldShowEnterCodeScene = false
+    @Published var loadingState: LoadingState = .initialized
 
 //    @Published var temporaryLoginUserInfo: LoginResponseUserInfo?
     var emailTimeout: Date?
@@ -32,6 +29,9 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
     let loginFieldViewModel = CommonInputViewModel(with: "Логин", isRequired: false, keyBoardType: .emailAddress, textContentType: .username)
 
     let passwordFieldViewModel = CommonInputViewModel(with: "Пароль", isRequired: false, isPassword: true, textContentType: .password)
+
+    let otpFieldViewModel = CommonInputViewModel(with: "Otp", isRequired: false, keyBoardType: .numberPad, textContentType: .oneTimeCode)
+
 
     struct Constants {
         static let unauthorizedKey = "unauthorized"
@@ -55,25 +55,25 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
 
     func clearData() {
         userProfile.clearData()
-        shouldShowEnterCodeScene = false
-        shouldShowEnterPhoneScene = false
-        shouldShowConfirmEmailScene = false
         model.login = ""
         model.password = ""
     }
 
     func signIn() {
+        loadingState = .loading
         model.login = model.login.trimmingCharacters(in: .whitespacesAndNewlines)
-        apiClient.createPublisher(for: UserLogInRequest(with: model.login, password: model.password))
+        apiClient.createPublisher(for: UserLogInRequest(with: model.login, password: model.password, otp: model.otp))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    if (error as? HTTPError) == .sessionExpired {
+                        self?.needsOtp = true
+                    }
+                    self?.loadingState = .loaded
                 }
             } receiveValue: { [weak self] response in
-                self?.userProfile.userId = response.userId
-                self?.userProfile.userEmail = response.email
-                self?.userProfile.apiKey = response.apiKey
+                self?.userProfile.refreshToken = response.refreshToken
+                self?.userProfile.accessToken = response.accessToken
             }
             .store(in: &cancellables)
     }

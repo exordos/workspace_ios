@@ -2,7 +2,6 @@
 //  DesignSystem.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 27.03.2026.
 //
 
 import SwiftUI
@@ -39,4 +38,5 @@ extension Color {
     static let indicatorRed = Color("colorIndicatorRed")
     static let indicatorBlue = Color("colorIndicatorBlue")
     static let indicatorGrey = Color("colorIndicatorGrey")
+    static let chatHeaderBackground = Color("colorChatHeaderBackground")
 }

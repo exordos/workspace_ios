@@ -2,7 +2,6 @@
 //  ProfileViewModel.swift
 //  WorkspaceBeta
 //
-//  Created by Evgenii Vedenin on 28.03.2026.
 //  
 //
 
@@ -13,9 +12,15 @@ final class ProfileViewModel: ObservableObject {
 
     @Published private(set) var model: Profile
     private let apiClient: APIClient
+    let userProfile: UserProfile
 
-    init(apiClient: APIClient, model: Profile) {
+    init(apiClient: APIClient, model: Profile, userProfile: UserProfile) {
         self.apiClient = apiClient
         self.model = model
+        self.userProfile = userProfile
+    }
+
+    func logout() {
+        userProfile.clearData()
     }
 }
