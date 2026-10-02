@@ -6,6 +6,13 @@
 
 import SwiftUI
 
+enum LoginRoute: Hashable {
+    case login
+    case otp(login: String, password: String)
+    case projects
+}
+
+
 struct LogInView: View {
 
     private struct Appearance {
@@ -18,33 +25,51 @@ struct LogInView: View {
     @State var needToRegister = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack(path: $viewModel.path) {
             VStack(alignment: .center) {
-                Image("serverIcon")
-                    .resizable()
-                    .frame(width: 116, height: 116)
+                if let imageUrl = viewModel.userProfile.selectedServer?.imageUrl {
+                    AsyncImage(url: URL(string: imageUrl)) { image in
+                        image
+                            .resizable()
+                            .frame(width: 116, height: 116)
+                    } placeholder: {
+                        Image("serverIcon")
+                            .resizable()
+                            .frame(width: 116, height: 116)
+                    }
                     .padding(.top, 100)
+                } else {
+                    Image("serverIcon")
+                        .resizable()
+                        .frame(width: 116, height: 116)
+                        .padding(.top, 100)
+                }
                 title
                 organizationUrl
                 loginField
-                    .padding(.top, 24)
+                    .padding(.top, 12)
                 passwordField
-                    .padding(.top, 24)
-
-                if viewModel.needsOtp {
-                    otpField
-                        .padding(.top, 24)
-                }
-
                 signInButton
                     .padding(.top, 24)
                 logoutButton
-                    .padding(.vertical, 10.0)
+                    .padding(.vertical, 12.0)
                 Spacer()
             }
             .padding(.horizontal, 16)
             .edgesIgnoringSafeArea(.horizontal)
             .navigationBarHidden(true)
+            .navigationDestination(for: LoginRoute.self) { route in
+                switch route {
+                case .login:
+                    LogInAssembly().assemble(with: viewModel.userProfile)
+                case let .otp(login, password):
+                    OtpAssembly().assemble(login: login, password: password, userProfile: viewModel.userProfile) {
+                        viewModel.path.append(LoginRoute.projects)
+                    }
+                case .projects:
+                    ProjectsAssembly().assemble(with: viewModel.projectsViewModel)
+                }
+            }
             .showLoader(viewModel.loadingState == .loading)
             .onTapGesture {
                 UIApplication.shared.endEditing()
@@ -57,17 +82,17 @@ struct LogInView: View {
     }
 
     var title: some View {
-        Text("Название организации")
+        Text(viewModel.userProfile.selectedServer?.name ?? "")
             .font(.system(size: 16, weight: .medium))
             .foregroundColor(Color.textHeaders)
             .padding(.vertical, 10.0)
     }
 
     var organizationUrl: some View {
-        Text(viewModel.userProfile.baseUrl ?? "")
+        Text(viewModel.userProfile.selectedServer?.baseUrl ?? "")
             .font(.system(size: 16, weight: .medium))
             .foregroundColor(Color.textAdditional50)
-            .padding(.vertical, 10.0)
+            .padding(.bottom, 12.0)
             .padding(.horizontal, 20.0)
     }
 
@@ -78,19 +103,14 @@ struct LogInView: View {
     var passwordField: some View {
         CommonInputView(viewModel: viewModel.passwordFieldViewModel, text: $viewModel.model.password)
     }
-
-    var otpField: some View {
-        CommonInputView(viewModel: viewModel.otpFieldViewModel, text: $viewModel.model.otp)
-    }
-
     var signInButton: some View {
-        PrimaryButton(title: "Логин", action: viewModel.signIn)
+        PrimaryButton(title: "Войти", action: viewModel.signIn)
             .accessibilityIdentifier("loginButton")
     }
 
     var logoutButton: some View {
         DestructiveButton(title: "Выйти из организации") {
-            presentationMode.wrappedValue.dismiss()
+            viewModel.exitTapped()
         }
     }
 }

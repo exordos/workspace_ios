@@ -7,71 +7,107 @@
 import Foundation
 import SwiftUI
 import Combine
+import SwiftData
 
 class UserProfile: ObservableObject {
 
-    @Published var accessToken: String? {
+    var accessToken: String? {
         didSet {
-            try? setToKeychain(value: accessToken, key: .accessTokenKey)
+            if let accessToken {
+                try? setAccessToken(accessToken, for: selectedServerUuid)
+            }
         }
     }
+
+    @Published var serverConfigs: [ServerConfig]
+
+    let context: ModelContext
 
     var refreshToken: String? {
         didSet {
-            try? setToKeychain(value: refreshToken, key: .refreshTokenKey)
+            if let refreshToken {
+                try? setRefreshToken(refreshToken, for: selectedServerUuid)
+            }
         }
     }
 
-    var userId: Int {
+    var selectedServer: ServerConfig? {
+        guard let selectedServerUuid else { return nil }
+        return serverConfigs.first { $0.uuid == selectedServerUuid }
+    }
+
+    var selectedServerUuid: String? {
         didSet {
-            UserDefaults.standard.set(userId, forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
+            UserDefaults.standard.set(selectedServerUuid, forKey: UserProfileUserDefaultsKey.selectedServerConfigKey.rawValue)
             UserDefaults.standard.synchronize()
         }
     }
 
-    var userEmail: String? {
-        get {
-            return UserDefaults.standard.string(forKey: UserProfileUserDefaultsKey.userEmailKey.rawValue)
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: UserProfileUserDefaultsKey.userEmailKey.rawValue)
-            UserDefaults.standard.synchronize()
-        }
-    }
-
-    var baseUrl: String? {
-        get {
-            return UserDefaults.standard.string(forKey: UserProfileUserDefaultsKey.baseUrlKey.rawValue)
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: UserProfileUserDefaultsKey.baseUrlKey.rawValue)
-            UserDefaults.standard.synchronize()
+    init(context: ModelContext) {
+        self.context = context
+        let serverConfigs = try? context.fetch(FetchDescriptor<ServerConfig>())
+        self.serverConfigs = serverConfigs ?? []
+        self.selectedServerUuid = UserDefaults.standard.string(forKey: UserProfileUserDefaultsKey.selectedServerConfigKey.rawValue)
+        if let selectedServerUuid = selectedServerUuid {
+            self.accessToken = accessToken(for: selectedServerUuid)
+            self.refreshToken = refreshToken(for: selectedServerUuid)
         }
     }
 
-    init() {
-        self.userId = UserDefaults.standard.integer(forKey: UserProfileUserDefaultsKey.userIdKey.rawValue)
-        self.accessToken = try? getValueFromKeychain(for: .accessTokenKey)
-        self.refreshToken = try? getValueFromKeychain(for: .refreshTokenKey)
+    func setAccessToken(_ accessToken: String, for serverUuid: String?) throws {
+        guard let serverUuid else { return }
+        try setToKeychain(value: accessToken, key: UserProfileKeichainKey.accessTokenKey.rawValue + serverUuid)
+    }
+
+    func setRefreshToken(_ accessToken: String, for serverUuid: String?) throws {
+        guard let serverUuid else { return }
+        try setToKeychain(value: refreshToken, key: UserProfileKeichainKey.refreshTokenKey.rawValue + serverUuid)
+    }
+
+    func accessToken(for serverUuid: String) -> String? {
+        return try? getValueFromKeychain(for: (UserProfileKeichainKey.accessTokenKey.rawValue + serverUuid))
+    }
+
+    func refreshToken(for serverUuid: String) -> String? {
+        return try? getValueFromKeychain(for: (UserProfileKeichainKey.refreshTokenKey.rawValue + serverUuid))
+    }
+
+    func addServerConfig(_ serverConfig: ServerConfig) {
+        context.insert(serverConfig)
+        serverConfigs.append(serverConfig)
+        selectServer(with: serverConfig.uuid)
+    }
+
+    func selectServer(with serverUuid: String) {
+        selectedServerUuid = serverUuid
+    }
+
+    func removeCurrentConfig() {
+        guard let selectedServer else { return }
+        context.delete(selectedServer)
+        try? context.save()
+        let selectedServerIndex = serverConfigs.firstIndex(of: selectedServer)
+        if let selectedServerIndex {
+            serverConfigs.remove(at: selectedServerIndex)
+        }
+        selectedServerUuid = serverConfigs.first?.uuid
     }
 
     func clearData() {
         DispatchQueue.main.async { [weak self] in
-            self?.baseUrl = nil
-            self?.userEmail = nil
+            self?.selectedServerUuid = nil
             self?.accessToken = nil
             self?.refreshToken = nil
-            self?.userId = 0
         }
     }
 
-    private func getValueFromKeychain(for key: UserProfileKeichainKey) throws -> String? {
-        let item = KeychainItem(service: KeychainItem.defaultService, account: key.rawValue)
+    private func getValueFromKeychain(for key: String) throws -> String? {
+        let item = KeychainItem(service: KeychainItem.defaultService, account: key)
         return try item.readValue()
     }
 
-    private func setToKeychain(value: String?, key: UserProfileKeichainKey) throws {
-        let item = KeychainItem(service: KeychainItem.defaultService, account: key.rawValue)
+    private func setToKeychain(value: String?, key: String) throws {
+        let item = KeychainItem(service: KeychainItem.defaultService, account: key)
         guard let value = value else {
             try item.deleteItem()
             return
@@ -86,13 +122,24 @@ enum UserProfileKeichainKey: String {
 }
 
 enum UserProfileUserDefaultsKey: String {
-    case userIdKey = "ru.genesiscorporation.workspace.userIdKey"
-    case userEmailKey = "ru.genesiscorporation.workspace.userEmailKey"
-    case baseUrlKey = "ru.genesiscorporation.workspace.baseUrlKey"
+    case selectedServerConfigKey = "com.exordos.workspace.currentServerKey"
 }
 
-enum UrlRequestArtificialFailureType: String {
-    case network
-    case somethingWentWrong
-}
+@Model
+class ServerConfig {
+    var uuid: String
+    var baseUrl: String
+    var imageUrl: String
+    var name: String
+    var needsToRelogin: Bool
+    var projectUuid: String?
 
+    init(uuid: String, baseUrl: String, imageUrl: String, name: String, needsToRelogin: Bool = false, projectUuid: String? = nil) {
+        self.uuid = uuid
+        self.baseUrl = baseUrl
+        self.imageUrl = imageUrl
+        self.name = name
+        self.needsToRelogin = needsToRelogin
+        self.projectUuid = projectUuid
+    }
+}

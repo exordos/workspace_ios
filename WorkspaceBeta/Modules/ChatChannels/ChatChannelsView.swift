@@ -9,7 +9,12 @@ import SwiftUI
 import Combine
 
 enum ChatNavigationDestination: Hashable {
-    case messages(StreamData, TopicsResponseData)
+    case messages(String, String, Bool)
+    case streamInfo(StreamData, TopicsResponseData)
+    case userProfile(UserResponseData)
+    case creationBase
+    case createStream
+    case createDirectStream
 }
 
 struct ChatChannelsView: View {
@@ -19,6 +24,10 @@ struct ChatChannelsView: View {
     @State private var path = NavigationPath()
 
     @State var shouldShowAddUserScene = false
+
+    @State private var offsetX: CGFloat = 0
+    @GestureState private var dragX: CGFloat = 0
+    private let dismissThreshold: CGFloat = 120
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -48,49 +57,117 @@ struct ChatChannelsView: View {
                     } else {
                         viewModel.streams
                     }
+                    let sortedFilteredStreams = filteredStreams.sorted {
+                        guard let firstMessage = $0.lastMessage else {
+                            return false
+                        }
+
+                        guard let secondMessage = $1.lastMessage else {
+                            return true
+                        }
+
+                        return firstMessage.createdAt > secondMessage.createdAt
+                    }
                     ScrollView {
                         LazyVStack(alignment: .leading) {
-                            ForEach(filteredStreams) { stream in
+                            ForEach(sortedFilteredStreams) { stream in
                                 ChatHeaderView(stream: stream, viewModel: viewModel)
                                     .onTapGesture {
-//                                        if stream.isPrivate {
-//                                            path.append(ChatNavigationDestination.directMessages(chatHeader))
-//                                        } else {
+                                        withAnimation {
                                             viewModel.selectedStream = stream
-                                            viewModel.loadTopics(for: stream)
-//                                        }
+                                        }
+                                        viewModel.loadTopics(for: stream)
                                     }
                             }
-
                         }
                     }
                 }
                 if let selectedStream = viewModel.selectedStream {
-                    ScrollView {
-                        LazyVStack(alignment: .leading) {
-                            ForEach(viewModel.loadedTopics, id: \.self) { topic in
-                                TopicHeaderView(topic: topic, viewModel: viewModel)
-                                    .onTapGesture {
-                                        path.append(ChatNavigationDestination.messages(selectedStream, topic))
-                                    }
+                    HStack {
+                        Divider()
+                            .background(Color.line10)
+                        ScrollView {
+                            LazyVStack(alignment: .leading) {
+                                let topics = viewModel.streamTopics[selectedStream.uuid] ?? []
+                                ForEach(topics, id: \.self) { topic in
+                                    TopicHeaderView(topic: topic, viewModel: viewModel)
+                                        .onTapGesture {
+                                            path.append(ChatNavigationDestination.messages(selectedStream.uuid, topic.uuid, selectedStream.isPrivate))
+                                        }
+                                        .contextMenu(
+                                            ContextMenu {
+                                                Button {
+
+                                                } label: {
+                                                    Text("Wassup")
+                                                }
+
+                                            }
+                                        )
+                                }
                             }
                         }
                     }
                     .background(Color.surface)
                     .padding(.leading, 80.0)
+                    .offset(x: offsetX + dragX)
+                    .simultaneousGesture(
+                                DragGesture(minimumDistance: 20)
+                                    .updating($dragX) { value, state, _ in
+                                        if abs(value.translation.width) > abs(value.translation.height) {
+                                            state = value.translation.width
+                                        }
+                                    }
+                                    .onEnded { value in
+                                        let dx = value.translation.width
+                                        let dy = value.translation.height
+                                        guard abs(dx) > abs(dy), abs(dx) > dismissThreshold else {
+                                            withAnimation(.spring()) { offsetX = 0 }
+                                            return
+                                        }
+                                        let direction: CGFloat = dx > 0 ? 1 : -1
+                                        withAnimation(.easeOut(duration: 0.25)) {
+                                            offsetX = direction * UIScreen.main.bounds.width
+                                        }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                            viewModel.selectedStream = nil
+                                            offsetX = 0
+                                        }
+                                    }
+                            )
                 }
             }
             .navigationDestination(for: ChatNavigationDestination.self) { value in
                 switch value {
-                case let .messages(stream, topic):
-                    ChatAssembly().assemble(stream: stream, topic: topic, isDirectMessages: stream.isPrivate, eventHandler: viewModel.eventHadler)
+                case let .messages(streamUuid, topicUuid, isDirectMessages):
+                    ChatAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, isDirectMessages: isDirectMessages, eventHandler: viewModel.eventHandler)
+                case .creationBase:
+                    CreationBaseAssembly().assemble {
+                        path.append(ChatNavigationDestination.createDirectStream)
+                    } onStreamTap: {
+                        path.append(ChatNavigationDestination.createStream)
+                    }
+                case .createDirectStream:
+                    CreateDirectStreamAssembly().assemble(with: viewModel.userProfile, eventHandler: viewModel.eventHandler) { streamUuid, topicUuid in
+                        path.removeLast(path.count)
+                        path.append(ChatNavigationDestination.messages(streamUuid, topicUuid, true))
+                    }
+                case .createStream:
+                    CreateStreamAssembly().assemble(with: viewModel.userProfile, eventHandler: viewModel.eventHandler) { streamUuid, topicUuid in
+                        path.removeLast(path.count)
+                        path.append(ChatNavigationDestination.messages(streamUuid, topicUuid, true))
+                    }
+                case let .streamInfo(stream, topic):
+                    StreamInfoAssembly().assemble()
+                case let .userProfile(userData):
+                    ChatUserInfoAssembly().assemble()
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Мессенджер")
             .navigationBarItems(
                 trailing: Button(action: {
-                    shouldShowAddUserScene = true
+                    path.append(ChatNavigationDestination.creationBase)
                 }) {
                     Image("addChat")
                 }
@@ -121,52 +198,64 @@ struct ChatChannelsView: View {
 struct ChatHeaderView: View {
 
     let stream: StreamData
-    let viewModel: ChatChannelsViewModel
+    @ObservedObject var viewModel: ChatChannelsViewModel
 
     var body: some View {
-        HStack {
-            AvatarView(avatarUrn: stream.avatarString, baseUrl: viewModel.userProfile.baseUrl ?? "", color: stream.color, name: stream.name)
-                .frame(width: 40, height: 40.0)
-                .clipShape(Circle())
-                .padding(.trailing, 12)
-            VStack(alignment: .leading) {
-                HStack {
+        ZStack {
+            HStack {
+                AvatarView(avatarUrn: stream.avatarString, baseUrl: viewModel.userProfile.selectedServer?.baseUrl ?? "", color: stream.color, name: stream.name, enhanceImageRequest: viewModel.apiClient.addHeaders)
+                    .frame(width: 40, height: 40.0)
+                    .clipShape(Circle())
+                    .padding(EdgeInsets(top: 12.0, leading: 8.0, bottom: 12.0, trailing: 12.0))
+                VStack(alignment: .leading, spacing: 8.0) {
                     Text(stream.name)
                         .foregroundStyle(Color.textHeaders)
                         .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
+                    if let lastMessage = stream.lastMessage {
+                        HStack {
+                            if let lastMessageAuthor = lastMessage.author {
+                                Text(lastMessageAuthor.displayableName)
+                                    .foregroundStyle(Color.textHeaders)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            Text(lastMessage.payload.content)
+                                .foregroundStyle(Color.textAdditional50)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing) {
+                    let unreadCount = stream.activeUnreadCount > 0 ? stream.activeUnreadCount : stream.passiveUnreadCount
+                    if unreadCount > 0 {
+                        let badgeColor = stream.activeUnreadCount > 0 ? Color.noticeBase : Color.noticeDisable
+                        BadgeView(item: "\(unreadCount)", color: badgeColor)
+                    }
                     Spacer()
                     if let lastMessage = stream.lastMessage {
-                        Text(DateFormatter.timeFormatter.string(from: lastMessage.updatedAt))
+                        Text(DateFormatter.timeFormatter.string(from: lastMessage.createdAt))
                             .foregroundStyle(Color.messageTimeColor)
                             .font(.system(size: 12))
                     }
                 }
-                HStack {
-                    if let lastMessage = stream.lastMessage {
-                        Text(lastMessage.payload.content)
-                            .foregroundStyle(Color.textAdditional50)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
+                .padding(EdgeInsets(top: 4.0, leading: 8.0, bottom: 4.0, trailing: 0.0))
+            }
+            if viewModel.selectedStream == nil {
+                VStack {
                     Spacer()
-                    if stream.unreadCount > 0 {
-                        Text("\(stream.unreadCount)")
-                            .padding(.horizontal, 8)
-                            .foregroundStyle(Color.noticeOnBadge)
-                            .background(Color.noticeCounterBadge)
-                            .clipShape(RoundedRectangle(cornerRadius: 100.0))
-                    }
+                    Divider()
+                        .background(Color.line10)
                 }
             }
         }
-        .frame(height: 70.0)
-        .padding(.horizontal, 16.0)
-        .background(Color.chatHeaderBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8.0))
-        .padding(.horizontal, 16.0)
+        .frame(height: 64.0)
+        .padding(.horizontal, 12.0)
     }
 }
 
@@ -176,46 +265,63 @@ struct TopicHeaderView: View {
     let viewModel: ChatChannelsViewModel
 
     var body: some View {
-        HStack {
-            VStack {
-                HStack {
+        ZStack {
+            HStack {
+                Color(hex: topic.color)
+                    .frame(width: 3.0, height: 47.0)
+                    .padding(.horizontal, 12.0)
+                VStack(alignment: .leading, spacing: 8.0) {
                     Text(topic.name)
                         .foregroundStyle(Color.textHeaders)
                         .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Spacer()
                     if let lastMessage = topic.lastMessage {
-                        Text(DateFormatter.timeFormatter.string(from: lastMessage.updatedAt))
-                            .foregroundStyle(Color.messageTimeColor)
-                            .font(.system(size: 12))
+                        HStack {
+                            if let lastMessageAuthor = lastMessage.author {
+                                Text(lastMessageAuthor.displayableName)
+                                    .foregroundStyle(Color.textHeaders)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            Text(lastMessage.payload.content)
+                                .foregroundStyle(Color.textAdditional50)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                     }
                 }
-                HStack {
-                    if let lastMessage = topic.lastMessage {
-                        Text(lastMessage.payload.content)
-                            .foregroundStyle(Color.textAdditional50)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                    Spacer()
+                Spacer()
+                VStack(alignment: .trailing) {
                     if topic.unreadCount > 0 {
-                        Text("\(topic.unreadCount)")
-                            .padding(.horizontal, 8)
-                            .foregroundStyle(Color.noticeOnBadge)
-                            .background(Color.noticeCounterBadge)
-                            .clipShape(RoundedRectangle(cornerRadius: 100.0))
+                        let badgeColor = topic.notificationMode == .mute ? Color.noticeDisable : Color.noticeBase
+                        BadgeView(item: "\(topic.unreadCount)", color: badgeColor)
                     }
-                }
-            }
+                    Spacer()
+                    Button {
+                        viewModel.setNextNotificationMode(for: topic)
+                    } label: {
+                        let imageName = switch (topic.notificationMode) {
+                        case .default: "notificationsSmall"
+                        case .follow: "volumeSmall"
+                        case .mute: "notificationsOffSmall"
+                        }
+                        Image(imageName)
+                    }
+                    .accentColor(Color.textAdditional30)
 
+                }
+                .padding(8.0)
+            }
+            VStack {
+                Spacer()
+                Divider()
+                    .background(Color.line10)
+            }
         }
-        .frame(height: 70.0)
-        .padding(.horizontal, 16.0)
-        .background(Color.chatHeaderBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8.0))
-        .padding(.horizontal, 16.0)
+        .frame(height: 64.0)
     }
 }
 
@@ -259,5 +365,33 @@ struct AddUserView: View {
                 .padding(.horizontal, 12.0)
             }
         }
+    }
+}
+
+extension View {
+    func animatedDrag() -> some View {
+        modifier(DraggableModifier())
+    }
+}
+
+struct DraggableModifier : ViewModifier {
+
+    @State private var draggedOffset: CGSize = .zero
+
+    func body(content: Content) -> some View {
+        content
+        .offset(
+            CGSize(width: draggedOffset.width,
+                   height:  0)
+        )
+        .gesture(
+            DragGesture()
+            .onChanged { value in
+                self.draggedOffset = value.translation
+            }
+            .onEnded { value in
+                self.draggedOffset = .zero
+            }
+        )
     }
 }

@@ -7,7 +7,7 @@
 import Foundation
 
 struct AddStreamRequest: APIRequest {
-    typealias Response = RefreshTokenResponseData
+    typealias Response = StreamData
     typealias ResponseError = EmptyDecodableError
 
     let name: String

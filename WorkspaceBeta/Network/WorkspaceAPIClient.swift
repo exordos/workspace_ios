@@ -18,6 +18,7 @@ class WorkspaceAPIClient: NSObject, APIClient {
     private(set) static var current: WorkspaceAPIClient!
 
     private var urlSession: URLSession!
+    
     var userProfile: UserProfile?
     var baseAccessToken: String?
     var baseEmail: String?
@@ -134,23 +135,103 @@ class WorkspaceAPIClient: NSObject, APIClient {
         }
     }
 
-    func uploadFile<T: APIRequest>(for request: T, data: Data, filename: String, mimeType: String) async throws -> T.Response {
-        let urlRequest = try prepareUploadRequest(request, data: data, filename: filename, mimeType: mimeType)
-        let urlRequestWithHeaders = urlRequest.applying(httpHeaders(for: request))
-
-        let (responseData, response) = try await URLSession.shared.data(for: urlRequestWithHeaders)
-        guard let httpResponse = response as? HTTPURLResponse else {
+    private func prepareUploadRequest<T: APIRequest>(
+        _ request: T,
+        data: Data,
+        filename: String,
+        mimeType: String,
+        streamUuid: String? = nil
+    ) throws -> URLRequest {
+        guard let url = URL(string: try getURLString(from: request.resource, for: request)) else {
+            throw APIError.encoding
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = request.method.rawValue
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let body = multipartBody(
+            data: data,
+            filename: filename.isEmpty ? "attachment" : filename,
+            mimeType: mimeType,
+            boundary: boundary,
+            streamUuid: streamUuid
+        )
+        urlRequest = urlRequest.applying(httpHeaders(for: request))
+        urlRequest.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        urlRequest.setValue("\(body.count)", forHTTPHeaderField: "Content-Length")
+        urlRequest.httpBody = body
+        return urlRequest
+    }
+    private func multipartBody(
+        data: Data,
+        filename: String,
+        mimeType: String,
+        boundary: String,
+        streamUuid: String?
+    ) -> Data {
+        var body = Data()
+        let crlf = "\r\n"
+        func append(_ string: String) {
+            body.append(Data(string.utf8))
+        }
+        append("--\(boundary)\(crlf)")
+        append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\(crlf)")
+        append("Content-Type: \(mimeType)\(crlf)")
+        append("Content-Length: \(data.count)\(crlf)")
+        append(crlf)
+        body.append(data)
+        append(crlf)
+        if let streamUuid {
+            append("--\(boundary)\(crlf)")
+            append("Content-Disposition: form-data; name=\"stream_uuid\"\(crlf)")
+            append(crlf)
+            append(streamUuid)
+            append(crlf)
+        }
+        append("--\(boundary)--\(crlf)")
+        return body
+    }
+    func uploadFile<T: APIRequest>(
+        for request: T,
+        data: Data,
+        filename: String,
+        mimeType: String,
+        streamUuid: String?
+    ) async throws -> T.Response {
+        let urlRequest = try prepareUploadRequest(
+            request,
+            data: data,
+            filename: filename,
+            mimeType: mimeType,
+            streamUuid: streamUuid
+        )
+        let (responseData, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
             throw APIError.decoding
         }
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.decoding
-        }
-        let decoded = try JSONDecoder().decode(T.Response.self, from: responseData)
-        return decoded
+        return try JSONDecoder().decode(T.Response.self, from: responseData)
     }
 
+//    func uploadFile<T: APIRequest>(for request: T, data: Data, filename: String, mimeType: String) async throws -> T.Response {
+//        let urlRequest = try prepareUploadRequest(request, data: data, filename: filename, mimeType: mimeType)
+//        let urlRequestWithHeaders = urlRequest.applying(httpHeaders(for: request))
+//
+//        let (responseData, response) = try await URLSession.shared.data(for: urlRequestWithHeaders)
+//        guard let httpResponse = response as? HTTPURLResponse else {
+//            throw APIError.decoding
+//        }
+//        guard (200...299).contains(httpResponse.statusCode) else {
+//            throw APIError.decoding
+//        }
+//        let decoded = try JSONDecoder().decode(T.Response.self, from: responseData)
+//        return decoded
+//    }
+
     func addBaseUrl(to avatarUrl: String) -> String {
-        guard !avatarUrl.contains("https://"), let baseUrl = userProfile?.baseUrl else { return avatarUrl }
+        guard !avatarUrl.contains("https://"), let baseUrl = userProfile?.selectedServer?.baseUrl else { return avatarUrl }
         return baseUrl + avatarUrl
     }
 
@@ -160,33 +241,35 @@ class WorkspaceAPIClient: NSObject, APIClient {
 
     private var task: URLSessionWebSocketTask?
 
-    func createWebSocketTask() {
-        let task = urlSession.webSocketTask(with: URL(string: "ws://workspace.exordos.com/api/messenger/ws?last_epoch_version=36")!, protocols: ["workspace.events.v1", "bearer.eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODI2NTc1MTksImlhdCI6MTc4MjY0MzYzMiwiYXV0aF90aW1lIjoxNzgyNjQzNjMyLCJqdGkiOiJiYjNkYzhhMi0xN2RmLTQyNDgtOGZiNy1iMTgxYWFiZTliYWIiLCJpc3MiOiJodHRwOi8vd29ya3NwYWNlLmV4b3Jkb3MuY29tOjgwL2FwaS9jb3JlL3YxL2lhbS9jbGllbnRzL2RlZmF1bHQvaWFtL2NsaWVudHMvMzg5ZGMyN2UtMDQwNy00ZDM4LWI3ODgtOTEyNWE4MTkxZDUyIiwiYXVkIjoiZXhvcmRvcyIsInN1YiI6Ijc0OWRiMTJiLTJlMzQtNDMwZi1hM2MzLTJmNDU5OTJiZjQ5ZSIsInR5cCI6IkJlYXJlciIsIm90cCI6ZmFsc2V9.fC8hCaKCCA4TyYDOpJrcGij6-ew4hF0_-VrtKkDij3PqBqDQyOHP3_N_t9L-8nUBMw9YAw_RqJlnWWXaLxfmvSqJ2-6OzyJk228vNudV5wy-0KQlPYBC6Z27AURlenXx57UjgZa1IUpX4eEmvsTj9VIWP4pb7udXnmVCVP1BZAUsmqZHWUmXdYSLeewFte_Hyhf8IT4Oaj5JGIpfLi9N2wt8R6z49qanoM0r4PUfJOKaPjgUFazq8_5hzhZLTpsECIetyGO82fBRoqBFyAdxNYHYdEaCUIZ_9HQQgWPVQGjAGcDEYY9yONRJlcZLGT60Ys8K7DMp7ksZn9D3ssNGHw"])
+    func createWebSocketTask(epochVersion: String, epochGeneration: String) {
+        guard let baseUrl = userProfile?.selectedServer?.baseUrl, let accessToken else { return }
+        let webSockerBaseUrl = baseUrl.replacingOccurrences(of: "https", with: "wss")
+        let task = urlSession.webSocketTask(with: URL(string: "\(webSockerBaseUrl)/api/workspace/v1/events/ws?last_epoch_version=\(epochVersion)&epoch_generation=\(epochGeneration)")!, protocols: ["workspace.events.v1", "bearer.\(accessToken)"])
         self.task = task
         task.resume()
-
-        receive()
     }
 
-    private func receive() {
-        task?.receive { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let message):
-                switch message {
-                case .string(let text):
-                    print("Received: \(text)")
-                case .data(let data):
-                    print("Received \(data.count) bytes")
-                @unknown default:
-                    break
-                }
-                self.receive()
-            case .failure(let error):
-                print("Receive failed: \(error)")
+    func messages() -> AsyncThrowingStream<URLSessionWebSocketTask.Message, Error> {
+        AsyncThrowingStream { continuation in
+            guard let task else {
+                continuation.finish()
+                return
             }
+            @Sendable func receiveNext() {
+                task.receive { result in
+                    switch result {
+                    case .success(let message):
+                        continuation.yield(message)
+                        receiveNext()
+                    case .failure(let error):
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+            receiveNext()
         }
     }
+
     private func httpHeaders<T: APIRequest>(for request: T) -> [String: String] {
         var headers: [String: String] = [:]
         headers["User-Agent"] = "Workspace/ios/\(Bundle.main.releaseVersionNumber)_\(Bundle.main.buildVersionNumber)"
@@ -242,29 +325,29 @@ class WorkspaceAPIClient: NSObject, APIClient {
         return body
     }
 
-    private func prepareUploadRequest<T: APIRequest>(_ request: T, data: Data, filename: String, mimeType: String) throws -> URLRequest {
-        guard let url = URL(string: try getURLString(from: request.resource, for: request)) else { throw APIError.encoding }
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = request.method.rawValue
-        let boundary = "Boundary-\(UUID().uuidString)"
-        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-type")
-        let body = multipartBody(
-            data: data,
-            fieldName: "filename",
-            filename: filename,
-            mimeType: mimeType,
-            boundary: boundary
-        )
-        urlRequest.httpBody = body
-        return urlRequest
-    }
+//    private func prepareUploadRequest<T: APIRequest>(_ request: T, data: Data, filename: String, mimeType: String) throws -> URLRequest {
+//        guard let url = URL(string: try getURLString(from: request.resource, for: request)) else { throw APIError.encoding }
+//        var urlRequest = URLRequest(url: url)
+//        urlRequest.httpMethod = request.method.rawValue
+//        let boundary = "Boundary-\(UUID().uuidString)"
+//        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-type")
+//        let body = multipartBody(
+//            data: data,
+//            fieldName: "filename",
+//            filename: filename,
+//            mimeType: mimeType,
+//            boundary: boundary
+//        )
+//        urlRequest.httpBody = body
+//        return urlRequest
+//    }
 
     private func getURLString(from resource: ResourceType, for request: any APIRequest) throws -> String {
         switch resource {
         case .absolute(let string):
             return string
         case .relative(let string):
-            guard let baseUrl = userProfile?.baseUrl else { throw APIError.encoding }
+            guard let baseUrl = userProfile?.selectedServer?.baseUrl else { throw APIError.encoding }
             return "\(baseUrl)\(string)"
         }
     }

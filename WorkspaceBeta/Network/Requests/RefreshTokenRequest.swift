@@ -12,10 +12,12 @@ struct RefreshTokenRequest: APIRequest {
 
     let grantType: String
     let refreshToken: String
+    let scope: String?
 
     enum CodingKeys: String, CodingKey {
         case grantType = "grant_type"
         case refreshToken = "refresh_token"
+        case scope
     }
 
     var resource: ResourceType {
@@ -30,9 +32,10 @@ struct RefreshTokenRequest: APIRequest {
         return false
     }
 
-    init(with refreshToken: String) {
+    init(with refreshToken: String, scope: String? = nil) {
         self.grantType = "refresh_token"
         self.refreshToken = refreshToken
+        self.scope = scope
     }
 }
 

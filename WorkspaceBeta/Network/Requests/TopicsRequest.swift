@@ -18,13 +18,13 @@ struct TopicsRequest: APIRequest {
         return .get
     }
 
-    private let streamUuid: String
+    private let streamUuid: [String]
 
     enum CodingKeys: String, CodingKey {
         case streamUuid = "stream_uuid"
     }
 
-    init(streamUuid: String) {
+    init(streamUuid: [String]) {
         self.streamUuid = streamUuid
     }
 }
@@ -35,6 +35,7 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
     let uuid: String
     let streamUuid: String
     var unreadCount: Int
+    var activeUnreadCount: Int
     var name: String
     var isDone: Bool
     var isDefault: Bool
@@ -42,7 +43,7 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
     var updatedAt: Date
     var lastMessageUuid: String?
     var lastMessage: MessageResponseData?
-    var notificationMode: String
+    var notificationMode: TopicNotificationMode
 
     var id: String {
         return uuid
@@ -51,6 +52,7 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case uuid
         case unreadCount = "unread_count"
+        case activeUnreadCount = "active_unread_count"
         case name
         case isDone = "is_done"
         case isDefault = "is_default"
@@ -60,4 +62,10 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
         case updatedAt = "updated_at"
         case notificationMode = "notification_mode"
     }
+}
+
+enum TopicNotificationMode: String, Codable {
+    case mute
+    case `default`
+    case follow
 }

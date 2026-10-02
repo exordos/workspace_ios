@@ -11,16 +11,20 @@ import Combine
 final class ProfileViewModel: ObservableObject {
 
     @Published private(set) var model: Profile
-    private let apiClient: APIClient
+    private(set) var apiClient: APIClient
     let userProfile: UserProfile
+    private(set) var eventHandler: EventHandler
 
-    init(apiClient: APIClient, model: Profile, userProfile: UserProfile) {
+    @Published var path = NavigationPath()
+
+    init(apiClient: APIClient, model: Profile, userProfile: UserProfile, eventHandler: EventHandler) {
         self.apiClient = apiClient
         self.model = model
         self.userProfile = userProfile
+        self.eventHandler = eventHandler
     }
 
     func logout() {
-        userProfile.clearData()
+        userProfile.selectedServer?.projectUuid = nil
     }
 }

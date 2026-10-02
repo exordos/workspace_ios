@@ -22,13 +22,16 @@ struct ChatInputView: View {
                     .frame(width: 100.0, height: 100.0)
             }
             HStack {
-                Group {
+                HStack {
                     PhotosPicker(selection: $selectedItem, matching: .images, preferredItemEncoding: .automatic) {
                         Image("attachFile")
                     }
                     TextField("", text: $typedMessage, axis: .vertical)
                         .lineLimit(4)
                 }
+                .padding(8.0)
+                .background(Color.background)
+                .clipShape(RoundedRectangle(cornerRadius: 12.0))
                 Button {
                     onSend()
                 } label: {
@@ -41,9 +44,6 @@ struct ChatInputView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12.0))
                 }
             }
-            .padding(12.0)
-            .background(Color.background)
-            .clipShape(RoundedRectangle(cornerRadius: 12.0))
             .onChange(of: selectedItem) { _, newItem in
                 Task {
                     if let newItem {

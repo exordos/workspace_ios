@@ -11,7 +11,7 @@ struct UploadFileRequest: APIRequest {
     typealias ResponseError = EmptyDecodableError
 
     var resource: ResourceType {
-        return .relative("/user_uploads")
+        return .relative("/api/workspace/v1/messenger/files/")
     }
 
     var method: HTTPMethod {
@@ -20,6 +20,6 @@ struct UploadFileRequest: APIRequest {
 }
 
 struct UploadFileResponseData: Decodable {
-    let url: String
-    let filename: String
+    let uuid: String
+    let name: String
 }

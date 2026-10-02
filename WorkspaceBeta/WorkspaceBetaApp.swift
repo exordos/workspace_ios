@@ -16,6 +16,7 @@ struct WorkspaceBetaApp: App {
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
+            ServerConfig.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -42,7 +43,7 @@ struct WorkspaceBetaApp: App {
     }
 
     init() {
-        let userProfile = UserProfile()
+        let userProfile = UserProfile(context: sharedModelContainer.mainContext)
         self._userProfile = StateObject(wrappedValue: userProfile)
         WorkspaceAPIClient()
         self.viewModel = WorkspaceBetaAppViewModel(with: WorkspaceAPIClient.current, userProfile: userProfile)
@@ -50,8 +51,10 @@ struct WorkspaceBetaApp: App {
 
     private var mainView: some View {
         Group {
-            if userProfile.accessToken == nil {
+            if userProfile.serverConfigs.isEmpty {
                 ChooseServerAssembly().assemble(with: userProfile)
+            } else if userProfile.selectedServer?.projectUuid == nil {
+                LogInAssembly().assemble(with: userProfile)
             } else {
                 MainTabBarAssembly().assemble(with: viewModel.mainTabBarViewModel)
             }
@@ -123,44 +126,44 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 //        completionHandler(.newData)
 //    }
 
-    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        if let kind = userInfo["kind"] as? String {
-            switch kind {
-            case "remove_notification_message":
-                if let messageIdsString = userInfo["message_ids"] as? String {
-                    let messageIds = messageIdsString.split(separator: ",").map(String.init)
-                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: messageIds)
-                }
-            case "private_chat_message":
-                if let messageId = userInfo["workspace_message_id"] as? String,
-                   let senderFullName = userInfo["sender_full_name"] as? String,
-                   let messageContent = userInfo["content"] as? String {
-                    let content = UNMutableNotificationContent()
-                    content.title = senderFullName
-                    content.body = messageContent
-                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
-                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
-                }
-             case "stream_chat_message":
-                if let messageId = userInfo["workspace_message_id"] as? String,
-                   let senderFullName = userInfo["sender_full_name"] as? String,
-                   let messageContent = userInfo["content"] as? String,
-                   let stream = userInfo["stream"] as? String,
-                   let topic = userInfo["topic"] as? String {
-                    let content = UNMutableNotificationContent()
-                    content.title = "\(stream) -> \(topic)"
-                    content.body = "\(senderFullName): \(messageContent)"
-                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
-                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
-                }
-            default:
-                break
-            }
-        }
-        Messaging.messaging().appDidReceiveMessage(userInfo)
-        print(userInfo)
-        return UIBackgroundFetchResult.newData
-    }
+//    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+//        if let kind = userInfo["kind"] as? String {
+//            switch kind {
+//            case "remove_notification_message":
+//                if let messageIdsString = userInfo["message_ids"] as? String {
+//                    let messageIds = messageIdsString.split(separator: ",").map(String.init)
+//                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: messageIds)
+//                }
+//            case "private_chat_message":
+//                if let messageId = userInfo["workspace_message_id"] as? String,
+//                   let senderFullName = userInfo["sender_full_name"] as? String,
+//                   let messageContent = userInfo["content"] as? String {
+//                    let content = UNMutableNotificationContent()
+//                    content.title = senderFullName
+//                    content.body = messageContent
+//                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
+//                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
+//                }
+//             case "stream_chat_message":
+//                if let messageId = userInfo["workspace_message_id"] as? String,
+//                   let senderFullName = userInfo["sender_full_name"] as? String,
+//                   let messageContent = userInfo["content"] as? String,
+//                   let stream = userInfo["stream"] as? String,
+//                   let topic = userInfo["topic"] as? String {
+//                    let content = UNMutableNotificationContent()
+//                    content.title = "\(stream) -> \(topic)"
+//                    content.body = "\(senderFullName): \(messageContent)"
+//                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
+//                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
+//                }
+//            default:
+//                break
+//            }
+//        }
+//        Messaging.messaging().appDidReceiveMessage(userInfo)
+//        print(userInfo)
+//        return UIBackgroundFetchResult.newData
+//    }
 }
 
 extension AppDelegate: MessagingDelegate {

@@ -13,7 +13,7 @@ final class ChatViewModel: ObservableObject {
 
     @Published private(set) var model: Chat
     private(set) var apiClient: APIClient
-    private(set) var eventHadler: EventHandler
+    private(set) var eventHandler: EventHandler
     private var cancellables: Set<AnyCancellable> = []
     @Published var loadingState: LoadingState = .initialized
     @Published var message: String = ""
@@ -21,16 +21,33 @@ final class ChatViewModel: ObservableObject {
     @Published var messageToSend: MessageResponseData?
     @Published var jitsiNameItem: JitsiNameItem?
     @Published var messages: [MessageResponseData] = []
+    @Published var streams: [StreamData] = []
+
+    var currentStream: StreamData? {
+        streams.first { $0.uuid == model.streamUuid }
+    }
 
     init(apiClient: APIClient, model: Chat, eventHandler: EventHandler) {
         self.apiClient = apiClient
         self.model = model
-        self.eventHadler = eventHandler
+        self.eventHandler = eventHandler
         subscribe()
     }
 
     func subscribe() {
-//        eventHadler.messagesPublisher
+        eventHandler.streamTopicMessagesPublisher
+            .sink { [weak self] streamTopicMessages in
+                guard let self else { return }
+                let messages = streamTopicMessages["\(model.streamUuid).\(model.topicUuid)"] ?? []
+                let newMessages = messages.filter {
+                    !self.model.messages.contains($0)
+                }
+                model.messages.append(contentsOf: newMessages)
+            }
+            .store(in: &cancellables)
+            eventHandler.streamsPublisher
+                .assign(to: &$streams)
+//        eventHandler.messagesPublisher
 //            .sink { [weak self] newMessages in
 //                guard let self else { return }
 //                let currentTypeMessages = newMessages.compactMap {
@@ -51,92 +68,82 @@ final class ChatViewModel: ObservableObject {
     }
 
     func onAppear() {
-        if loadingState == .initialized {
+        if loadingState == .initialized, messages.isEmpty {
             loadInitialMessages()
         }
     }
 
     func onSendButtonTapped() async {
-//        if let image {
-//            let imageData = try? imageData(
-//                        from: image,
-//                        renderSize: CGSize(width: 1024, height: 1024),
-//                        jpegQuality: 0.85
-//            )
-//            if let imageData {
-//                let imageUploadResponse = try? await apiClient.uploadFile(for: UploadFileRequest(), data: imageData, filename: "file", mimeType: "image/jpeg")
-//                var messageText = ""
-//                if !message.isEmpty {
-//                    messageText += "\(message)\r\n"
-//                }
-//                if let imageUploadResponse {
-//                    messageText += "[(\(imageUploadResponse.filename)](\(imageUploadResponse.url))"
-//                }
-//                sendMessage(with: messageText)
-//                message = ""
-//            }
-//        }
-//        if !message.isEmpty {
-//            sendMessage(with: message)
-//            message = ""
-//        }
+        if let image {
+            let imageData = try? imageData(
+                        from: image,
+                        renderSize: CGSize(width: 1024, height: 1024),
+                        jpegQuality: 0.85
+            )
+            if let imageData {
+                let imageUploadResponse = try? await apiClient.uploadFile(for: UploadFileRequest(), data: imageData, filename: "file", mimeType: "image/jpeg", streamUuid: model.streamUuid)
+                var messageText = ""
+                if !message.isEmpty {
+                    messageText += "\(message)\r\n"
+                }
+                if let imageUploadResponse {
+                    messageText += "![\(imageUploadResponse.name)](urn:image:\(imageUploadResponse.uuid))\n\n"
+                }
+                sendMessage(with: messageText)
+                message = ""
+            }
+        } else if !message.isEmpty {
+            sendMessage(with: message)
+            message = ""
+            image = nil
+        }
     }
 
     func sendMessage(with text: String) {
-//        messageToSend = UnifiedMessage(id: -1,
-//                                       senderFullName: model.currentUser.fullName,
-//                                       senderId: model.currentUser.userId,
-//                                       content: text,
-//                                       timestamp: Int(Date().timeIntervalSince1970),
-//                                       avatarUrl: model.currentUser.avatarUrl,
-//                                       subject: "",
-//                                       displayRecipient: "")
-//        apiClient.createPublisher(for: SendMessageRequest(type: model.isDirectMessages ? "direct" : "stream", to: model.chatId, content: text, topic: model.isDirectMessages ? nil : model.topic))
-//            .receive(on: DispatchQueue.main)
-//            .sink { [weak self] completion in
-//                if case let .failure(error) = completion {
-//                    // Error
-//                }
-//            } receiveValue: { [weak self] response in
-//                guard let self else { return }
-//                if var messageToSend = self.messageToSend {
-//                    messageToSend.id = response.id
-//                    model.messages.append(messageToSend)
-//                    self.messageToSend = nil
-//                }
-//            }
-//            .store(in: &cancellables)
+        let message = MessageResponseData(uuid: UUID().uuidString,
+                                          updatedAt: Date(),
+                                          createdAt: Date(),
+                                          streamUuid: model.streamUuid,
+                                          topicUuid: model.topicUuid,
+                                          payload: .init(kind: .markdown, content: text),
+                                          isOwn: true,
+                                          authorUuid: eventHandler.ownUser?.uuid ?? "",
+                                          reactions: [:])
+        eventHandler.addMessageToStreamTopic(message: message)
+        apiClient.createPublisher(for: SendMessageRequest(streamUuid: model.streamUuid, topicUuid: model.topicUuid, content: text))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                if case let .failure(error) = completion {
+                    // Error
+                }
+            } receiveValue: { [weak self] response in
+                guard let self else { return }
+
+            }
+            .store(in: &cancellables)
     }
 
     func loadInitialMessages() {
-//        loadMessages(anchor: "newest", narrow: narrow)
+        loadMessages()
     }
 
-    func loadMessages(anchor: String, narrow: String) {
-//        apiClient.createPublisher(for: MessagesRequest(anchor: anchor, numBefore: "100", numAfter: "0", narrow: narrow, applyMarkdown: "false"))
-//            .receive(on: DispatchQueue.main)
-//            .sink { [weak self] completion in
-//                if case let .failure(error) = completion {
-//                    // Error
-//                }
-//            } receiveValue: { [weak self] response in
-//                guard let self else { return }
-//                let unifiedMessages = response.messages.map {
-//                    switch $0 {
-//                    case let .channel(channelMessageData):
-//                        channelMessageData.unifiedMessage
-//                    case let .direct(privateMessageData):
-//                        privateMessageData.unifiedMessage
-//                    }
-//                }
-//                model.messages.append(contentsOf: unifiedMessages)
-//            }
-//            .store(in: &cancellables)
+    func loadMessages() {
+        apiClient.createPublisher(for: MessagesRequest(streamUuid: model.streamUuid, topicUuid: model.topicUuid))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                if case let .failure(error) = completion {
+                    // Error
+                }
+            } receiveValue: { [weak self] response in
+                guard let self else { return }
+                eventHandler.addTopicMessages(response, to: model.streamUuid, and: model.topicUuid)
+            }
+            .store(in: &cancellables)
     }
 
     func didTapOnCallButton() {
         let generatedCallName = JitsiStyleRoomNameGenerator().generate()
-        sendMessage(with: "\(eventHadler.meetUrl)/\(generatedCallName)")
+        sendMessage(with: "\(eventHandler.meetUrl)/\(generatedCallName)")
         jitsiNameItem = .init(jitsiName: generatedCallName)
     }
 
