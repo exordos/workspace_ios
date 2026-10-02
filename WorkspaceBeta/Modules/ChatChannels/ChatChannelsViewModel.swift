@@ -17,7 +17,7 @@ final class ChatChannelsViewModel: ObservableObject {
     @Published var currentlySelectedFolder: FolderResponseData?
     private(set) var apiClient: APIClient
     let userProfile: UserProfile
-    private(set) var eventHadler: EventHandler
+    private(set) var eventHandler: EventHandler
     private var loadedSubscriptions: [StreamData] = []
     @Published var selectedStream: StreamData?
     @Published var loadedTopics: [TopicsResponseData] = []
@@ -33,14 +33,14 @@ final class ChatChannelsViewModel: ObservableObject {
         self.apiClient = apiClient
         self.model = model
         self.userProfile = userProfile
-        self.eventHadler = eventHandler
+        self.eventHandler = eventHandler
 
         subscribeToEvents()
     }
 
     func onAppear() {
         if loadingState == .initialized {
-            loadServerSettings()
+//            eventHandler.loadServerSettings()
             //            if let token = Messaging.messaging().fcmToken {
             //                apiClient.createPublisher(for: SendFcmTokenRequest(token: "workspace:apple:\(token)"))
             //                    .receive(on: DispatchQueue.main)
@@ -53,130 +53,17 @@ final class ChatChannelsViewModel: ObservableObject {
     }
 
     func subscribeToEvents() {
-        eventHadler.streamsPublisher
+        eventHandler.streamsPublisher
             .assign(to: &$streams)
 
-        eventHadler.messagePoolPublisher
+        eventHandler.messagePoolPublisher
             .assign(to: &$poolMessages)
 
-        eventHadler.usersPublisher
+        eventHandler.usersPublisher
             .assign(to: &$users)
 
-        eventHadler.streamTopicsPublisher
+        eventHandler.streamTopicsPublisher
             .assign(to: &$streamTopics)
-    }
-
-    func loadServerSettings() {
-        loadingState = .loading
-        apiClient.createPublisher(for: ServerSettingsRequest(with: userProfile.baseUrl ?? ""))
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-                self?.loadingState = .loaded
-            } receiveValue: { [weak self] response in
-                guard let self else { return }
-                eventHadler.meetUrl = response.meetUrl
-                loadOwnUser()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadOwnUser() {
-        apiClient.createPublisher(for: OwnUserRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                self?.eventHadler.ownUser = response
-                self?.loadUsers()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadMessageReactions(for userUuid: String) {
-        apiClient.createPublisher(for: MessageReactionsRequest(userUuid: userUuid))
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                self?.eventHadler.setInitialMessageReactions(response)
-                self?.loadUsers()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadUsers() {
-        loadingState = .loading
-        apiClient.createPublisher(for: UsersRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                self?.eventHadler.setInitialUsers(response)
-                self?.loadFolders()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadFolders() {
-        apiClient.createPublisher(for: FoldersRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                let sortedFolders = response.sorted { $0.createdAt < $1.createdAt
-                }
-                self?.eventHadler.setInitialFolders(sortedFolders)
-                if self?.currentlySelectedFolder == nil {
-                    self?.currentlySelectedFolder = sortedFolders.first
-                }
-                self?.loadSubscribedStreams()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadSubscribedStreams() {
-        apiClient.createPublisher(for: StreamsRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                guard let self else { return }
-                let messageIds = response.compactMap { $0.lastMessageUuid }
-                apiClient.createPublisher(for: MessagesByIdsRequest(messageIds: messageIds))
-                    .receive(on: DispatchQueue.main)
-                    .sink { [weak self] completion in
-                        if case let .failure(error) = completion {
-                            // Error
-                        }
-                    } receiveValue: { [weak self] messagesResponse in
-                        guard let self else { return }
-                        self.eventHadler.setInitialMessagePool(messagesResponse)
-                        let streamsWithMessages = response.map { stream in
-                            var streamWithMessage = stream
-                            let message = self.poolMessages.first(where: { message in
-                                message.uuid == stream.lastMessageUuid
-                            })
-                            streamWithMessage.lastMessage = message
-                            return streamWithMessage
-                        }
-                        self.eventHadler.setInitialStreams(streamsWithMessages)
-                    }
-                    .store(in: &cancellables)
-            }
-            .store(in: &cancellables)
     }
 
     func onTap(on stream: StreamData) {
@@ -189,7 +76,7 @@ final class ChatChannelsViewModel: ObservableObject {
 
     func loadTopics(for stream: StreamData) {
         loadedTopics.removeAll()
-        apiClient.createPublisher(for: TopicsRequest(streamUuid: stream.uuid))
+        apiClient.createPublisher(for: TopicsRequest(streamUuid: [stream.uuid]))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
@@ -206,7 +93,7 @@ final class ChatChannelsViewModel: ObservableObject {
                         }
                     } receiveValue: { [weak self] messagesResponse in
                         guard let self else { return }
-                        self.eventHadler.setInitialMessagePool(messagesResponse)
+                        self.eventHandler.setInitialMessagePool(messagesResponse)
                         let topicsWithMessages = response.map { topic in
                             var topicWithMessage = topic
                             let message = self.poolMessages.first(where: { message in
@@ -215,11 +102,32 @@ final class ChatChannelsViewModel: ObservableObject {
                             topicWithMessage.lastMessage = message
                             return topicWithMessage
                         }
-                        self.eventHadler.addTopics(topicsWithMessages, to: stream.uuid)
+                        self.eventHandler.addTopics(topicsWithMessages, to: stream.uuid)
+                        self.eventHandler.addTopicsToPool(topicsWithMessages)
                         loadedTopics = topicsWithMessages
                     }
                     .store(in: &cancellables)
             }
             .store(in: &cancellables)
     }
+
+    func setNextNotificationMode(for topic: TopicsResponseData) {
+        let nextNotificationMode: TopicNotificationMode = switch topic.notificationMode {
+        case .mute:
+                .default
+        case .default:
+                .follow
+        case .follow:
+                .mute
+        }
+        setTopicNotificationMode(topicUuid: topic.uuid, notificationMode: nextNotificationMode.rawValue)
+    }
+
+    func setTopicNotificationMode(topicUuid: String, notificationMode: String) {
+        apiClient.createPublisher(for: UpdateTopicNotificationModeRequest(topicUuid: topicUuid, notificationMode: notificationMode))
+            .receive(on: DispatchQueue.main)
+            .sink {  _ in } receiveValue: {  _ in }
+            .store(in: &cancellables)
+    }
+
 }

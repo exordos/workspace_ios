@@ -22,7 +22,7 @@ struct EpochRequest: APIRequest {
 struct EpochRequestData: Decodable { }
 
 struct EpochResponseData: Decodable {
-    let epochVersion: String
+    let epochVersion: Int
     let epochGeneration: String
 
     enum CodingKeys: String, CodingKey {

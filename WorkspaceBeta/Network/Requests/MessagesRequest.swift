@@ -51,8 +51,24 @@ struct MessagesByIdsRequest: APIRequest {
     }
 }
 
+struct MentionedMessagesRequest: APIRequest {
+    typealias Response = [MessageResponseData]
+    typealias ResponseError = EmptyDecodableError
 
-struct MessageResponseData: Decodable, Hashable {
+    let mentioned = true
+
+    var resource: ResourceType {
+        return .relative("/api/workspace/v1/messenger/messages/")
+    }
+
+    var method: HTTPMethod {
+        return .get
+    }
+}
+
+
+
+struct MessageResponseData: Decodable, Hashable, Identifiable {
     let uuid: String
     let updatedAt: Date
     let createdAt: Date
@@ -64,6 +80,9 @@ struct MessageResponseData: Decodable, Hashable {
     var reactions: [String: Int]
     var author: UserResponseData?
 
+    var id: String {
+        return uuid
+    }
 
     enum CodingKeys: String, CodingKey {
         case uuid

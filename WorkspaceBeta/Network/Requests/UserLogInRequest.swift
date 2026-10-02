@@ -48,7 +48,7 @@ struct UserLogInRequest: APIRequest {
         self.login = login
         self.password = password
         self.grantType = "login+password"
-        self.scope = "openid email profile project:fe02e55d-4548-4b3e-a175-fcae928f41b2"
+        self.scope = "openid email profile"
         self.ttl = "3600"
         self.refreshTtl = "172800"
         self.otp = otp

@@ -21,7 +21,8 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
     private var forgottenEmailString: String?
     @Published var loadingState: LoadingState = .initialized
 
-//    @Published var temporaryLoginUserInfo: LoginResponseUserInfo?
+    @Published var path = NavigationPath()
+
     var emailTimeout: Date?
     var supportPhone: String?
     var supportEmails: [String]?
@@ -32,6 +33,11 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
 
     let otpFieldViewModel = CommonInputViewModel(with: "Otp", isRequired: false, keyBoardType: .numberPad, textContentType: .oneTimeCode)
 
+    lazy var projectsViewModel:ProjectsViewModel = {
+        let model = Projects()
+        let viewModel = ProjectsViewModel(apiClient: WorkspaceAPIClient.current, model: model, userProfile: self.userProfile)
+        return viewModel
+    }()
 
     struct Constants {
         static let unauthorizedKey = "unauthorized"
@@ -59,21 +65,28 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
         model.password = ""
     }
 
+    func exitTapped() {
+        userProfile.removeCurrentConfig()
+    }
+
     func signIn() {
         loadingState = .loading
         model.login = model.login.trimmingCharacters(in: .whitespacesAndNewlines)
         apiClient.createPublisher(for: UserLogInRequest(with: model.login, password: model.password, otp: model.otp))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
+                guard let self else { return }
                 if case let .failure(error) = completion {
                     if (error as? HTTPError) == .sessionExpired {
-                        self?.needsOtp = true
+                        path.append(LoginRoute.otp(login: model.login, password: model.password))
                     }
-                    self?.loadingState = .loaded
+                    self.loadingState = .loaded
                 }
             } receiveValue: { [weak self] response in
                 self?.userProfile.refreshToken = response.refreshToken
                 self?.userProfile.accessToken = response.accessToken
+                self?.loadingState = .loaded
+                self?.path.append(LoginRoute.projects)
             }
             .store(in: &cancellables)
     }

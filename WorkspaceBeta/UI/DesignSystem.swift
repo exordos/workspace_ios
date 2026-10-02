@@ -21,6 +21,7 @@ extension Color {
     static let messageBackground = Color("colorMessageBackground")
     static let messageTimeColor = Color("colorMessageTimeColor")
     static let messageOwnBackground = Color("colorMessageOwnBackground")
+    static let messageOwnSelectedBg = Color("colorMessageOwnSelectedBg")
     static let messageActiveCallBackground = Color("colorMessageActiveCallBackground")
     static let messageSelectedForeground = Color("colorMessageSelectedForeground")
     static let cardBackgroundBase = Color("colorCardBackgroundBase")
@@ -39,4 +40,5 @@ extension Color {
     static let indicatorBlue = Color("colorIndicatorBlue")
     static let indicatorGrey = Color("colorIndicatorGrey")
     static let chatHeaderBackground = Color("colorChatHeaderBackground")
+    static let line10 = Color("colorLine10")
 }

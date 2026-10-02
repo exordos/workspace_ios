@@ -38,7 +38,12 @@ final class MainTabBarViewModel: MainTabBarViewModelProtocol, ObservableObject {
 
     lazy var profileViewModel: ProfileViewModel = {
         let model = Profile()
-        return ProfileViewModel(apiClient: apiClient, model: model, userProfile: userProfile)
+        return ProfileViewModel(apiClient: apiClient, model: model, userProfile: userProfile, eventHandler: eventHandler)
+    }()
+
+    lazy var homeViewModel: HomeViewModel = {
+        let model = Home()
+        return HomeViewModel(apiClient: apiClient, model: model, userProfile: userProfile, eventHandler: eventHandler)
     }()
 
 
@@ -46,7 +51,7 @@ final class MainTabBarViewModel: MainTabBarViewModelProtocol, ObservableObject {
         self.apiClient = apiClient
         self.model = model
         self.userProfile = userProfile
-        self.eventHandler = EventHandler(apiClient: apiClient)
+        self.eventHandler = EventHandler(apiClient: apiClient, userProfile: userProfile)
     }
 }
 
@@ -57,6 +62,8 @@ extension MainTabBar.Tab {
             return Image("chatTab")
         case .profile:
             return Image("profileTab")
+        case .home:
+            return Image("home")
         }
     }
 }

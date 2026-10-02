@@ -40,11 +40,15 @@ struct ServerSettingsRequestData: Decodable {}
 struct ServerSettingsResponseData: Decodable {
     let isEmailAuthEnabled: Bool
     let realmName: String
+    let realmIcon: String
+    let realmUrl: String
     let meetUrl: String
 
     enum CodingKeys: String, CodingKey {
         case isEmailAuthEnabled = "email_auth_enabled"
         case realmName = "realm_name"
+        case realmIcon = "realm_icon"
+        case realmUrl = "realm_url"
         case meetUrl = "meet_url"
     }
 }
