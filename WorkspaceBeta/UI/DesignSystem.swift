@@ -41,4 +41,5 @@ extension Color {
     static let indicatorGrey = Color("colorIndicatorGrey")
     static let chatHeaderBackground = Color("colorChatHeaderBackground")
     static let line10 = Color("colorLine10")
+    static let alert = Color("colorAlert")
 }

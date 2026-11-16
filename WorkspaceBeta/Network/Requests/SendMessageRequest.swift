@@ -12,7 +12,7 @@ struct SendMessageRequest: APIRequest {
 
     let streamUuid: String
     let topicUuid: String?
-    let payload: MessageRequestDataPayload
+    let payload: MessageResponsePayload
 
     enum CodingKeys: String, CodingKey {
         case streamUuid = "stream_uuid"
@@ -28,16 +28,11 @@ struct SendMessageRequest: APIRequest {
         return .post
     }
 
-    init(streamUuid: String, topicUuid: String?, content: String) {
+    init(streamUuid: String, topicUuid: String?, payload: MessageResponsePayload) {
         self.streamUuid = streamUuid
         self.topicUuid = topicUuid
-        self.payload = .init(kind: "markdown", content: content)
+        self.payload = payload
     }
-}
-
-struct MessageRequestDataPayload: Encodable {
-    let kind: String
-    let content: String
 }
 
 struct SendMessageResponseData: Decodable {

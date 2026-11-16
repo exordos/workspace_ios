@@ -67,6 +67,7 @@ struct ProjectsView: View {
                     }
                 }
                 .showLoader(viewModel.selectProjectLoadingState == .loading)
+                .alertError(errorText: $viewModel.actionErrorResult)
             }
         }
     }

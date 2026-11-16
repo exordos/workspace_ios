@@ -7,5 +7,6 @@
 
 struct CreateStream {
     var streamName = ""
-    var selectedUsers: [UserResponseData] = []
+    var isEncrypted = false
+    var selectedUsers: [UserData] = []
 }

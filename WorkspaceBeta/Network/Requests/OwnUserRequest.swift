@@ -11,7 +11,7 @@ struct OwnUserRequest: APIRequest {
     typealias ResponseError = EmptyDecodableError
 
     var resource: ResourceType {
-        return .relative("/api/workspace/v1/messenger/me/")
+        return .relative("/api/workspace/v1/me/")
     }
 
     var method: HTTPMethod {

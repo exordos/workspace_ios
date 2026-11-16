@@ -90,7 +90,7 @@ class WorkspaceAPIClient: NSObject, APIClient {
                     guard let response = result.response as? HTTPURLResponse,
                           (200...299).contains(response.statusCode)
                     else {
-                        self?.userProfile?.clearData()
+                        self?.userProfile?.removeCurrentTokenPair()
                         throw HTTPError.statusCode
                     }
                     return try JSONDecoder().decode(RefreshTokenResponseData.self, from: result.data)
@@ -123,14 +123,14 @@ class WorkspaceAPIClient: NSObject, APIClient {
                         }
                         .handleEvents(receiveCompletion: { [weak self] completion in
                             if case .failure = completion {
-                                self?.userProfile?.clearData()
+                                self?.userProfile?.removeCurrentTokenPair()
                             }
                         })
                         .eraseToAnyPublisher()
                 }
                 .eraseToAnyPublisher()
         } catch {
-            userProfile?.clearData()
+            userProfile?.removeCurrentTokenPair()
             return Fail(error: error).eraseToAnyPublisher()
         }
     }
@@ -414,10 +414,10 @@ enum HTTPParameter: Decodable {
             self = .string(stringValue)
         } else if let boolValue = try? container.decode(Bool.self) {
             self = .bool(boolValue)
-        } else if let doubleValue = try? container.decode(Double.self) {
-            self = .double(doubleValue)
         } else if let intValue = try? container.decode(Int.self) {
             self = .int(intValue)
+        } else if let doubleValue = try? container.decode(Double.self) {
+            self = .double(doubleValue)
         } else if let stringArrayValue = try? container.decode([String].self) {
             self = .stringArray(stringArrayValue)
         } else {

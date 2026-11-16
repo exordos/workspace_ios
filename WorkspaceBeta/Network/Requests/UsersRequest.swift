@@ -66,4 +66,13 @@ struct UserResponseData: Decodable, Hashable, Identifiable {
 
         return displayableName
     }
+
+    var statusString: String {
+        switch status {
+        case "active":
+            "В сети"
+        default:
+            "Не в сети"
+        }
+    }
 }

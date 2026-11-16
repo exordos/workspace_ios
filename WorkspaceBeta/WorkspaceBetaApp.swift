@@ -16,7 +16,18 @@ struct WorkspaceBetaApp: App {
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            ServerConfig.self
+            ServerConfig.self,
+            EncryptedChatKey.self,
+            MessageData.self,
+            StreamData.self,
+            TopicData.self,
+            UserData.self,
+            DraftData.self,
+            FolderData.self,
+            FolderItemData.self,
+            LastMessageData.self,
+            MessageReactionData.self,
+            StreamBindingData.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -11,7 +11,7 @@ struct StreamBindingsRequest: APIRequest {
     typealias ResponseError = EmptyDecodableError
 
 
-    let streamUuid: String
+    let streamUuid: String?
 
     enum CodingKeys: String, CodingKey {
         case streamUuid = "stream_uuid"
@@ -25,7 +25,7 @@ struct StreamBindingsRequest: APIRequest {
         return .get
     }
 
-    init(with streamUuid: String) {
+    init(with streamUuid: String? = nil) {
         self.streamUuid = streamUuid
     }
 }

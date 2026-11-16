@@ -16,8 +16,6 @@ final class HomeMentionsViewModel: ObservableObject {
     private(set) var eventHandler: EventHandler
     @Published var loadingState: LoadingState = .initialized
 
-    @Published var users: [UserResponseData] = []
-
     private var cancellables: Set<AnyCancellable> = []
 
     init(apiClient: APIClient, model: HomeMentions, userProfile: UserProfile, eventHandler: EventHandler) {
@@ -25,13 +23,6 @@ final class HomeMentionsViewModel: ObservableObject {
         self.model = model
         self.userProfile = userProfile
         self.eventHandler = eventHandler
-
-        subscribeToEvents()
-    }
-
-    func subscribeToEvents() {
-        eventHandler.usersPublisher
-            .assign(to: &$users)
     }
 
     func onAppear() {
@@ -50,8 +41,8 @@ final class HomeMentionsViewModel: ObservableObject {
                 guard let self else { return }
                 let messagesWithAuthor = messagesResponse.map {
                     var messageWithAuthor = $0
-                    let author = self.users.first(where: { $0.uuid == messageWithAuthor.authorUuid })
-                    messageWithAuthor.author = author
+//                    let author = self.users.first(where: { $0.uuid == messageWithAuthor.authorUuid })
+//                    messageWithAuthor.author = author
                     return messageWithAuthor
                 }
                 model.messages = messagesWithAuthor

@@ -70,5 +70,6 @@ struct ChooseServerView: View {
         .showLoader(viewModel.loadingState == .loading)
         .navigationBarHidden(true)
         .background(Color.background)
+        .alertError(errorText: $viewModel.actionErrorResult)
     }
 }

@@ -7,7 +7,7 @@
 import Foundation
 
 struct TopicsRequest: APIRequest {
-    typealias Response = [TopicsResponseData]
+    typealias Response = [TopicResponseData]
     typealias ResponseError = EmptyDecodableError
 
     var resource: ResourceType {
@@ -24,14 +24,14 @@ struct TopicsRequest: APIRequest {
         case streamUuid = "stream_uuid"
     }
 
-    init(streamUuid: [String]) {
+    init(streamUuid: [String] = []) {
         self.streamUuid = streamUuid
     }
 }
 
 struct TopicsRequestData: Decodable { }
 
-struct TopicsResponseData: Decodable, Identifiable, Hashable {
+struct TopicResponseData: Decodable, Identifiable, Hashable {
     let uuid: String
     let streamUuid: String
     var unreadCount: Int
@@ -43,7 +43,7 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
     var updatedAt: Date
     var lastMessageUuid: String?
     var lastMessage: MessageResponseData?
-    var notificationMode: TopicNotificationMode
+    var notificationMode: TopicResponseNotificationMode
 
     var id: String {
         return uuid
@@ -64,7 +64,7 @@ struct TopicsResponseData: Decodable, Identifiable, Hashable {
     }
 }
 
-enum TopicNotificationMode: String, Codable {
+enum TopicResponseNotificationMode: String, Codable {
     case mute
     case `default`
     case follow

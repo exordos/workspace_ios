@@ -47,10 +47,10 @@ struct HomeMentionsView: View {
                                     Text(message.author?.displayableName ?? "")
                                         .foregroundStyle(Color.indicatorPurple)
                                         .font(.system(size: 14, weight: .medium))
-                                    Text(LocalizedStringKey(message.payload.content))
-                                        .lineLimit(Int.max)
-                                        .foregroundStyle(Color.textHeaders)
-                                        .font(.system(size: 14))
+//                                    Text(LocalizedStringKey(message.payload.content))
+//                                        .lineLimit(Int.max)
+//                                        .foregroundStyle(Color.textHeaders)
+//                                        .font(.system(size: 14))
                                 }
                                 Spacer()
                                 VStack {

@@ -41,7 +41,15 @@ struct KeychainItem {
         guard status == noErr else { throw KeychainError.unhandledError(status: status) }
     }
 
-    func readValue() throws -> String? {
+    func readStringValue() throws -> String? {
+        do {
+            return try readStringItem()
+        } catch KeychainError.noItem {
+            return nil
+        }
+    }
+
+    func readValue() throws -> Data? {
         do {
             return try readItem()
         } catch KeychainError.noItem {
@@ -49,17 +57,21 @@ struct KeychainItem {
         }
     }
 
-    func saveItem(_ item: String) throws {
+    func saveStringItem(_ item: String) throws {
         guard let encodedItem = item.data(using: String.Encoding.utf8) else {
             throw KeychainError.unexpectedItemData
         }
 
+        try saveItem(encodedItem)
+    }
+
+    func saveItem(_ item: Data) throws {
         do {
 
             try _ = readItem()
 
             var attributesToUpdate = [String: AnyObject]()
-            attributesToUpdate[kSecValueData as String] = encodedItem as AnyObject?
+            attributesToUpdate[kSecValueData as String] = item as AnyObject?
             attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
             let query = keychainQuery(with: service, account: account, accessGroup: accessGroup)
@@ -69,7 +81,7 @@ struct KeychainItem {
         } catch KeychainError.noItem {
 
             var newItem = keychainQuery(with: service, account: account, accessGroup: accessGroup)
-            newItem[kSecValueData as String] = encodedItem as AnyObject?
+            newItem[kSecValueData as String] = item as AnyObject?
             newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
             let status = SecItemAdd(newItem as CFDictionary, nil)
@@ -88,7 +100,17 @@ struct KeychainItem {
 
     // MARK: Convenience
 
-    private func readItem() throws -> String {
+    private func readStringItem() throws -> String {
+
+        let item = try readItem()
+        if let itemString = String(data: item, encoding: String.Encoding.utf8) {
+            return itemString
+        } else {
+            throw KeychainError.unexpectedItemData
+        }
+    }
+
+    private func readItem() throws -> Data {
 
         var query = keychainQuery(with: service, account: account, accessGroup: accessGroup)
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -104,13 +126,12 @@ struct KeychainItem {
         guard status == noErr else { throw KeychainError.unhandledError(status: status) }
 
         guard let existingItem = queryResult as? [String: AnyObject],
-            let passwordData = existingItem[kSecValueData as String] as? Data,
-            let password = String(data: passwordData, encoding: String.Encoding.utf8)
-            else {
-                throw KeychainError.unexpectedItemData
+              let data = existingItem[kSecValueData as String] as? Data
+                else {
+            throw KeychainError.unexpectedItemData
         }
 
-        return password
+        return data
     }
 
     private func keychainQuery(with service: String, account: String? = nil, accessGroup: String? = nil) -> [String: AnyObject] {

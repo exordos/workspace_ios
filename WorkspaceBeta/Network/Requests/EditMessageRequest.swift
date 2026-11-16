@@ -11,7 +11,7 @@ struct EditMessageRequest: APIRequest {
     typealias ResponseError = EmptyDecodableError
 
     let messageId: String
-    let payload: MessageRequestDataPayload
+    let payload: MessagePayload
 
     enum CodingKeys: String, CodingKey {
         case payload
@@ -25,14 +25,10 @@ struct EditMessageRequest: APIRequest {
         return .put
     }
 
-    init(with messageId: String, content: String) {
+    init(with messageId: String, payload: MessagePayload) {
         self.messageId = messageId
-        self.payload = .init(kind: "markdown", content: content)
+        self.payload = payload
     }
-}
-
-struct EditMessageRequestData: Encodable {
-    let payload: MessageRequestDataPayload
 }
 
 struct EditMessageResponseData: Decodable { }
