@@ -90,5 +90,4 @@ final class ChatChannelsViewModel: ObservableObject {
             .sink {  _ in } receiveValue: {  _ in }
             .store(in: &cancellables)
     }
-
 }
