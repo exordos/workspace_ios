@@ -6,16 +6,19 @@
 //
 
 import SwiftUI
+import SwiftData
 import Combine
 
 struct CreateDirectStreamView: View {
 
     @ObservedObject var viewModel: CreateDirectStreamViewModel
 
+    @Query var users: [UserData]
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading) {
-                ForEach(viewModel.users, id:\.self) { user in
+                ForEach(users) { user in
                     DirectUserView(user: user, viewModel: viewModel)
                 }
             }
@@ -25,7 +28,7 @@ struct CreateDirectStreamView: View {
 
 struct DirectUserView: View {
 
-    let user: UserResponseData
+    let user: UserData
     let viewModel: CreateDirectStreamViewModel
 
     var body: some View {

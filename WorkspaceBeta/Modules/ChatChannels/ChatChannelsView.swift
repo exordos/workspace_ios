@@ -7,10 +7,13 @@
 
 import SwiftUI
 import Combine
+import SwiftData
 
 enum ChatNavigationDestination: Hashable {
     case messages(String, String, Bool)
-    case streamInfo(StreamData, TopicsResponseData)
+    case streamInfo(String, String)
+    case streamSettings(String, String)
+    case streamKeySettings(String, String)
     case userProfile(UserResponseData)
     case creationBase
     case createStream
@@ -28,6 +31,8 @@ struct ChatChannelsView: View {
     @State private var offsetX: CGFloat = 0
     @GestureState private var dragX: CGFloat = 0
     private let dismissThreshold: CGFloat = 120
+
+    @Query var streams: [StreamData]
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -48,14 +53,15 @@ struct ChatChannelsView: View {
                         }
                         .padding(.horizontal, 16.0)
                     }
+                    let notArchivedStreams = streams.filter { $0.isArchived == false }
                     let filteredStreams = if let currentlySelectedFolder = viewModel.currentlySelectedFolder {
-                        viewModel.streams.filter { stream in
+                        notArchivedStreams.filter { stream in
                             guard let folderItems = currentlySelectedFolder.folderItems else { return false }
                             let folderItemIds = folderItems.map { folderItem in folderItem.streamUuid }
                             return folderItemIds.contains(stream.uuid)
                         }
                     } else {
-                        viewModel.streams
+                        notArchivedStreams
                     }
                     let sortedFilteredStreams = filteredStreams.sorted {
                         guard let firstMessage = $0.lastMessage else {
@@ -76,8 +82,18 @@ struct ChatChannelsView: View {
                                         withAnimation {
                                             viewModel.selectedStream = stream
                                         }
-                                        viewModel.loadTopics(for: stream)
+                                        viewModel.onTap(on: stream)
                                     }
+                                    .contextMenu(
+                                        ContextMenu {
+                                            Button {
+
+                                            } label: {
+                                                Text("Добавить в папку")
+                                            }
+
+                                        }
+                                    )
                             }
                         }
                     }
@@ -88,8 +104,19 @@ struct ChatChannelsView: View {
                             .background(Color.line10)
                         ScrollView {
                             LazyVStack(alignment: .leading) {
-                                let topics = viewModel.streamTopics[selectedStream.uuid] ?? []
-                                ForEach(topics, id: \.self) { topic in
+                                let topics = viewModel.loadedTopics
+                                let sortedTopics = topics.sorted {
+                                    guard let firstMessage = $0.lastMessage else {
+                                        return false
+                                    }
+
+                                    guard let secondMessage = $1.lastMessage else {
+                                        return true
+                                    }
+
+                                    return firstMessage.createdAt > secondMessage.createdAt
+                                }
+                                ForEach(sortedTopics, id: \.self) { topic in
                                     TopicHeaderView(topic: topic, viewModel: viewModel)
                                         .onTapGesture {
                                             path.append(ChatNavigationDestination.messages(selectedStream.uuid, topic.uuid, selectedStream.isPrivate))
@@ -99,7 +126,7 @@ struct ChatChannelsView: View {
                                                 Button {
 
                                                 } label: {
-                                                    Text("Wassup")
+                                                    Text("Пометить прочитанным")
                                                 }
 
                                             }
@@ -140,7 +167,11 @@ struct ChatChannelsView: View {
             .navigationDestination(for: ChatNavigationDestination.self) { value in
                 switch value {
                 case let .messages(streamUuid, topicUuid, isDirectMessages):
-                    ChatAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, isDirectMessages: isDirectMessages, eventHandler: viewModel.eventHandler)
+                    ChatAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, isDirectMessages: isDirectMessages, eventHandler: viewModel.eventHandler) {
+                        path.append(ChatNavigationDestination.streamInfo(streamUuid, topicUuid))
+                    } onUserTap: { _ in
+
+                    }
                 case .creationBase:
                     CreationBaseAssembly().assemble {
                         path.append(ChatNavigationDestination.createDirectStream)
@@ -157,8 +188,16 @@ struct ChatChannelsView: View {
                         path.removeLast(path.count)
                         path.append(ChatNavigationDestination.messages(streamUuid, topicUuid, true))
                     }
-                case let .streamInfo(stream, topic):
-                    StreamInfoAssembly().assemble()
+                case let .streamInfo(streamUuid, topicUuid):
+                    StreamInfoAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, eventHandler: viewModel.eventHandler) {
+                        path.append(ChatNavigationDestination.streamSettings(streamUuid, topicUuid))
+                    }
+                case let .streamSettings(streamUuid, topicUuid):
+                    StreamSettingsAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, eventHandler: viewModel.eventHandler) {
+                        path.append(ChatNavigationDestination.streamKeySettings(streamUuid, topicUuid))
+                    }
+                case let .streamKeySettings(streamUuid, topicUuid):
+                    StreamKeySettingsAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, eventHandler: viewModel.eventHandler)
                 case let .userProfile(userData):
                     ChatUserInfoAssembly().assemble()
                 }
@@ -174,24 +213,11 @@ struct ChatChannelsView: View {
             )
 
         }
-        .fullScreenCover(isPresented: $shouldShowAddUserScene) {
-            AddUserView(userList: viewModel.users, enhanceAvatarUrl: viewModel.apiClient.addBaseUrl(to:)) { selectedUser in
-                shouldShowAddUserScene = false
-//                path.append(
-//                    ChatNavigationDestination.directMessages(
-//                        .init(user: selectedUser,
-//                              lastMessage: nil,
-//                              currentUserId: "\(viewModel.ownUser?.userId ?? 0)",
-//                              unreadCount: 0,
-//                              avatarUrl: selectedUser.avatarUrl
-//                             )
-//                    )
-//                )
-            }
-        }
         .onAppear {
             viewModel.onAppear()
         }
+        .showLoader(viewModel.loadingState == .loading)
+        .fullScreenError(errorViewModel: $viewModel.errorViewModel)
     }
 }
 
@@ -215,14 +241,12 @@ struct ChatHeaderView: View {
                         .truncationMode(.tail)
                     if let lastMessage = stream.lastMessage {
                         HStack {
-                            if let lastMessageAuthor = lastMessage.author {
-                                Text(lastMessageAuthor.displayableName)
-                                    .foregroundStyle(Color.textHeaders)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
-                            Text(lastMessage.payload.content)
+                            Text(lastMessage.author?.displayableName ?? "Пользователь")
+                                .foregroundStyle(Color.textHeaders)
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Text(lastMessage.thumbnail)
                                 .foregroundStyle(Color.textAdditional50)
                                 .font(.system(size: 12))
                                 .lineLimit(1)
@@ -261,7 +285,7 @@ struct ChatHeaderView: View {
 
 struct TopicHeaderView: View {
 
-    let topic: TopicsResponseData
+    let topic: TopicData
     let viewModel: ChatChannelsViewModel
 
     var body: some View {
@@ -278,14 +302,12 @@ struct TopicHeaderView: View {
                         .truncationMode(.tail)
                     if let lastMessage = topic.lastMessage {
                         HStack {
-                            if let lastMessageAuthor = lastMessage.author {
-                                Text(lastMessageAuthor.displayableName)
-                                    .foregroundStyle(Color.textHeaders)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
-                            Text(lastMessage.payload.content)
+                            Text(lastMessage.author?.displayableName ?? "Пользователь")
+                                .foregroundStyle(Color.textHeaders)
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Text(lastMessage.thumbnail)
                                 .foregroundStyle(Color.textAdditional50)
                                 .font(.system(size: 12))
                                 .lineLimit(1)

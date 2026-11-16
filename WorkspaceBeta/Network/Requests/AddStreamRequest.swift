@@ -7,21 +7,21 @@
 import Foundation
 
 struct AddStreamRequest: APIRequest {
-    typealias Response = StreamData
+    typealias Response = StreamResponseData
     typealias ResponseError = EmptyDecodableError
 
     let name: String
     let description: String
     let directUserUuid: String?
-    let sourceName: String
-    let source: AddStreamRequestSource
+    let isEncrypted: Bool
+    let currentEncryptionKeyUuid: String?
 
     enum CodingKeys: String, CodingKey {
         case name
         case description
         case directUserUuid = "direct_user_uuid"
-        case sourceName = "source_name"
-        case source
+        case isEncrypted = "encryption"
+        case currentEncryptionKeyUuid = "current_encryption_key_uuid"
     }
 
     var resource: ResourceType {
@@ -32,17 +32,13 @@ struct AddStreamRequest: APIRequest {
         return .post
     }
 
-    init(with name: String, description: String, directUserUuid: String?) {
+    init(with name: String, description: String, directUserUuid: String?, isEncrypted: Bool, currentEncryptionKeyUuid: String?) {
         self.name = name
         self.description = description
         self.directUserUuid = directUserUuid
-        self.sourceName = "native"
-        self.source = .init()
+        self.isEncrypted = isEncrypted
+        self.currentEncryptionKeyUuid = currentEncryptionKeyUuid
     }
-}
-
-struct AddStreamRequestSource: Encodable {
-    let kind: String = "native"
 }
 
 struct AddStreamResponseData: Decodable {}

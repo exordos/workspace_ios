@@ -15,6 +15,8 @@ final class ProjectsViewModel: ObservableObject {
     let userProfile: UserProfile
     @Published var loadingState: LoadingState = .initialized
     @Published var selectProjectLoadingState: LoadingState = .initialized
+    @Published var actionErrorResult: LocalizedStringKey?
+    @Published var errorViewModel: FullScreenErrorViewModel?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -33,10 +35,11 @@ final class ProjectsViewModel: ObservableObject {
         apiClient.createPublisher(for: ProjectsRequest())
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
+                guard let self else { return }
                 if case let .failure(error) = completion {
-                    // Error
+                    errorViewModel = .init(actionToRepeat: loadProjects)
                 }
-                self?.loadingState = .loaded
+                self.loadingState = .loaded
             } receiveValue: { [weak self] response in
                 guard let self else { return }
                 model.projects = response
@@ -52,7 +55,7 @@ final class ProjectsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    self?.actionErrorResult = "Не удалось выбрать проект, пожалуйста попробуйте позже"
                 }
                 self?.selectProjectLoadingState = .loaded
             } receiveValue: { [weak self] response in

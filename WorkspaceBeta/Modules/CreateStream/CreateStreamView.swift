@@ -6,18 +6,28 @@
 //
 
 import SwiftUI
+import SwiftData
 import Combine
 
 struct CreateStreamView: View {
 
     @ObservedObject var viewModel: CreateStreamViewModel
 
+    @Query var users: [UserData]
+
     var body: some View {
-        VStack {
+        VStack(spacing: 12.0) {
             CommonInputView(viewModel: viewModel.streamNameFieldViewModel, text: $viewModel.model.streamName)
+            Toggle(isOn: $viewModel.model.isEncrypted) {
+                Text("E2ee-шифрование")
+                    .font(.system(size: 14.0))
+                    .foregroundStyle(Color.textHeaders)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             ScrollView {
                 LazyVStack(alignment: .leading) {
-                    ForEach(viewModel.users, id:\.self) { user in
+                    ForEach(users) { user in
                         StreamUserView(user: user, viewModel: viewModel)
                     }
                 }
@@ -30,7 +40,7 @@ struct CreateStreamView: View {
 
 struct StreamUserView: View {
 
-    let user: UserResponseData
+    let user: UserData
     @ObservedObject var viewModel: CreateStreamViewModel
 
     var body: some View {

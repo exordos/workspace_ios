@@ -14,11 +14,11 @@ final class ChooseServerViewModel: ObservableObject {
     private let apiClient: APIClient
     let userProfile: UserProfile
     private var cancellables: Set<AnyCancellable> = []
+    @Published var actionErrorResult: LocalizedStringKey?
+    @Published var loadingState: LoadingState = .initialized
 
     let baseUrlFieldViewModel = CommonInputViewModel(with: "Адрес организации", isRequired: false, keyBoardType: .emailAddress, textContentType: .username)
 
-
-    @Published var loadingState: LoadingState = .initialized
 
     init(apiClient: APIClient, model: ChooseServer, userProfile: UserProfile) {
         self.apiClient = apiClient
@@ -37,13 +37,13 @@ final class ChooseServerViewModel: ObservableObject {
         apiClient.createPublisher(for: ServerSettingsRequest(with: model.baseUrl))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
+                if case .failure = completion {
+                    self?.actionErrorResult = "Данный сервер не настроен для работы с Workspace. Обратитесь к администратору"
                 }
                 self?.loadingState = .loaded
             } receiveValue: { [weak self] response in
                 guard let self else { return }
-                let newServerConfig = ServerConfig(uuid: UUID().uuidString, baseUrl: model.baseUrl, imageUrl: response.realmUrl, name: response.realmName)
+                let newServerConfig = ServerConfig(uuid: UUID().uuidString.lowercased(), baseUrl: model.baseUrl, imageUrl: response.realmUrl, name: response.realmName)
                 userProfile.addServerConfig(newServerConfig)
                 self.loadingState = .loaded
             }

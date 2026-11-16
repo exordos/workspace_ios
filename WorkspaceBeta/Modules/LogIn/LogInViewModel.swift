@@ -20,6 +20,7 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
     let userProfile: UserProfile
     private var forgottenEmailString: String?
     @Published var loadingState: LoadingState = .initialized
+    @Published var actionErrorResult: LocalizedStringKey?
 
     @Published var path = NavigationPath()
 
@@ -60,12 +61,12 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
     }
 
     func clearData() {
-        userProfile.clearData()
         model.login = ""
         model.password = ""
     }
 
     func exitTapped() {
+        userProfile.removeCurrentTokenPair()
         userProfile.removeCurrentConfig()
     }
 
@@ -79,6 +80,8 @@ class LogInViewModel: LogInViewModelProtocol, ObservableObject {
                 if case let .failure(error) = completion {
                     if (error as? HTTPError) == .sessionExpired {
                         path.append(LoginRoute.otp(login: model.login, password: model.password))
+                    } else {
+                        self.actionErrorResult = "Неправильный логин или пароль"
                     }
                     self.loadingState = .loaded
                 }
