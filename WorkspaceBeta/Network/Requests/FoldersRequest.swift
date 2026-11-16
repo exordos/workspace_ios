@@ -51,12 +51,12 @@ struct FolderItem: Decodable, Hashable  {
     }
 }
 
-enum FolderItemChatType: String, Decodable {
+enum FolderItemChatType: String, Codable {
     case stream
     case `private`
 }
 
-enum FolderSystemType: String, Decodable {
+enum FolderSystemType: String, Codable {
     case all
     case created
 }

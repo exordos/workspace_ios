@@ -6,8 +6,20 @@
 
 import Foundation
 import Combine
+import SwiftData
 
 final class EventHandler {
+
+    struct InitialLoadingData {
+        let streams: [StreamResponseData]
+        let topics: [TopicResponseData]
+        let streamBindings: [StreamBindingResponseData]
+        let users: [UserResponseData]
+        var folders: [FolderResponseData]
+        var drafts: [DraftResponseData]
+        var messageReactions: [MessageReactionResponseData]
+        var messages: [MessageResponseData]
+    }
 
     private var apiClient: APIClient
     let userProfile: UserProfile
@@ -18,288 +30,49 @@ final class EventHandler {
 
     var ownUser: UserResponseData?
 
-    var loadingState: LoadingState = .initialized
+    var loadingState: LoadingState = .initialized {
+        didSet {
+            loadingStateSubject.send(loadingState)
+        }
+    }
+
+    private let loadingStateSubject = CurrentValueSubject<LoadingState, Never>(.initialized)
+    var loadingStatePublisher: AnyPublisher<LoadingState, Never> {
+        loadingStateSubject.eraseToAnyPublisher()
+    }
+
+    var initialLoadingErrorViewModel: FullScreenErrorViewModel? {
+        didSet {
+            initialLoadingErrorSubject.send(initialLoadingErrorViewModel)
+        }
+    }
+
+    private let initialLoadingErrorSubject = CurrentValueSubject<FullScreenErrorViewModel?, Never>(nil)
+    var initialLoadingErrorPublisher: AnyPublisher<FullScreenErrorViewModel?, Never> {
+        initialLoadingErrorSubject.eraseToAnyPublisher()
+    }
+
     private var listenTask: Task<Void, Never>?
-
-    private var messageReactions: [MessageReaction] = [] {
-        didSet {
-            messageReactionsSubject.send(messageReactions)
-        }
-    }
-
-    private let messageReactionsSubject = CurrentValueSubject<[MessageReaction], Never>([])
-    var messageReactionsPublisher: AnyPublisher<[MessageReaction], Never> {
-        messageReactionsSubject.eraseToAnyPublisher()
-    }
-
-    private(set) var users: [UserResponseData] = [] {
-        didSet {
-            usersSubject.send(users)
-        }
-    }
-
-    private let usersSubject = CurrentValueSubject<[UserResponseData], Never>([])
-    var usersPublisher: AnyPublisher<[UserResponseData], Never> {
-        usersSubject.eraseToAnyPublisher()
-    }
-
-    private var folders: [FolderResponseData] = [] {
-        didSet {
-            foldersSubject.send(folders)
-        }
-    }
-
-    private let foldersSubject = CurrentValueSubject<[FolderResponseData], Never>([])
-    var foldersPublisher: AnyPublisher<[FolderResponseData], Never> {
-        foldersSubject.eraseToAnyPublisher()
-    }
-
-    private var streams: [StreamData] = [] {
-        didSet {
-            streamsSubject.send(streams)
-        }
-    }
-
-    private let streamsSubject = CurrentValueSubject<[StreamData], Never>([])
-    var streamsPublisher: AnyPublisher<[StreamData], Never> {
-        streamsSubject.eraseToAnyPublisher()
-    }
-
-    private var topicsPool: [TopicsResponseData] = [] {
-        didSet {
-            topicsSubject.send(topicsPool)
-        }
-    }
-
-    private let topicsSubject = CurrentValueSubject<[TopicsResponseData], Never>([])
-    var topicsPublisher: AnyPublisher<[TopicsResponseData], Never> {
-        topicsSubject.eraseToAnyPublisher()
-    }
-
-    func addTopicsToPool(_ topics: [TopicsResponseData]) {
-        topicsPool.append(contentsOf: topics)
-    }
-
-    private var drafts: [DraftResponseData] = [] {
-        didSet {
-            draftsSubject.send(drafts)
-        }
-    }
-
-    private let draftsSubject = CurrentValueSubject<[DraftResponseData], Never>([])
-    var draftsPublisher: AnyPublisher<[DraftResponseData], Never> {
-        draftsSubject.eraseToAnyPublisher()
-    }
-
-    private var messagePool: [MessageResponseData] = [] {
-        didSet {
-            messagePoolSubject.send(messagePool)
-        }
-    }
-
-    private let messagePoolSubject = CurrentValueSubject<[MessageResponseData], Never>([])
-    var messagePoolPublisher: AnyPublisher<[MessageResponseData], Never> {
-        messagePoolSubject.eraseToAnyPublisher()
-    }
-
-    private var streamTopics: [String: [TopicsResponseData]] = [:] {
-        didSet {
-            streamTopicsSubject.send(streamTopics)
-        }
-    }
-
-    private let streamTopicsSubject = CurrentValueSubject<[String: [TopicsResponseData]], Never>([:])
-    var streamTopicsPublisher: AnyPublisher<[String: [TopicsResponseData]], Never> {
-        streamTopicsSubject.eraseToAnyPublisher()
-    }
-
-
-
-    private var streamTopicMessages: [String: [MessageResponseData]] = [:] {
-        didSet {
-            streamTopicMessagesSubject.send(streamTopicMessages)
-        }
-    }
-
-    private let streamTopicMessagesSubject = CurrentValueSubject<[String: [MessageResponseData]], Never>([:])
-    var streamTopicMessagesPublisher: AnyPublisher<[String: [MessageResponseData]], Never> {
-        streamTopicMessagesSubject.eraseToAnyPublisher()
-    }
-
-
 
     init(apiClient: APIClient, userProfile: UserProfile) {
         self.apiClient = apiClient
         self.userProfile = userProfile
     }
 
-    func setInitialMessageReactions(_ messageReactions: [MessageReaction]) {
-        self.messageReactions = messageReactions
+    func shouldRequestEncryptionKey(for stream: StreamData) -> Bool {
+        guard stream.hasEncryption, let selectedServer = userProfile.selectedServer else { return false }
+        return !selectedServer.encryptedChatKeys.contains { $0.uuid.lowercased() == stream.currentEncryptionKeyUuid?.lowercased() }
     }
-
-    func addMessageReaction(_ messageReaction: MessageReaction) {
-        if let ownUser, ownUser.uuid == messageReaction.userUuid {
-            messageReactions.append(messageReaction)
-        }
-    }
-
-    func deleteMessageReaction(_ messageReaction: MessageReaction) {
-        guard let messageReactionToDeleteIndex = messageReactions.firstIndex( where: { $0.uuid == messageReaction.uuid }) else { return }
-        messageReactions.remove(at: messageReactionToDeleteIndex)
-    }
-
-    func setInitialUsers(_ users: [UserResponseData]) {
-        self.users = users
-    }
-
-    func addUser(_ user: UserResponseData) {
-        users.append(user)
-    }
-
-    func updateUser(_ user: UserResponseData) {
-        guard let userToUpdateIndex = users.firstIndex(where: { $0.uuid == user.uuid }) else { return }
-        users[userToUpdateIndex].avatar = user.avatar
-        users[userToUpdateIndex].email = user.email
-        users[userToUpdateIndex].firstName = user.firstName
-        users[userToUpdateIndex].lastName = user.lastName
-        users[userToUpdateIndex].status = user.status
-        users[userToUpdateIndex].statusEmoji = user.statusEmoji
-        users[userToUpdateIndex].statusText = user.statusText
-    }
-
-    func setInitialFolders(_ folders: [FolderResponseData]) {
-        self.folders = folders
-    }
-
-    func addFolder(_ folder: FolderResponseData) {
-        folders.append(folder)
-    }
-
-    func updateFolder(_ folder: FolderResponseData) {
-        guard let folderToUpdateIndex = folders.firstIndex(where: { $0.uuid == folder.uuid }) else { return }
-        folders[folderToUpdateIndex].unreadCount = folder.unreadCount
-        folders[folderToUpdateIndex].title = folder.title
-        folders[folderToUpdateIndex].folderItems = folder.folderItems
-    }
-
-    func setInitialStreams(_ streams: [StreamData]) {
-        self.streams = streams
-    }
-
-    func addStream(_ stream: StreamData) {
-        streams.append(stream)
-    }
-
-    func updateStream(_ stream: StreamData) {
-        guard let streamToUpdateIndex = streams.firstIndex(where: { $0.uuid == stream.uuid }) else { return }
-        streams[streamToUpdateIndex].lastMessageUuid = stream.lastMessageUuid
-        streams[streamToUpdateIndex].unreadCount = stream.unreadCount
-        streams[streamToUpdateIndex].lastMessage = messagePool.first(where: { $0.uuid == stream.lastMessageUuid
-        })
-    }
-
-    func setInitialDrafts(_ drafts: [DraftResponseData]) {
-        self.drafts = drafts
-    }
-
-    func addDraft(_ draft: DraftResponseData) {
-        drafts.append(draft)
-    }
-
-    func updateDraft(_ draft: DraftResponseData) {
-        guard let draftToUpdateIndex = drafts.firstIndex(where: { $0.uuid == draft.uuid }) else { return }
-        drafts[draftToUpdateIndex].payload = draft.payload
-        drafts[draftToUpdateIndex].revision = draft.revision
-    }
-
-    func addTopics(_ topics: [TopicsResponseData], to streamUuid: String) {
-        streamTopics[streamUuid] = topics
-    }
-
-    func addTopic(_ topic: TopicsResponseData) {
-        if streamTopics[topic.streamUuid] != nil {
-            streamTopics[topic.streamUuid]?.append(topic)
-         }
-    }
-
-    func updateTopic(_ topic: TopicsResponseData) {
-        if streamTopics[topic.streamUuid] != nil {
-            guard let topicToUpdateIndex = streamTopics[topic.streamUuid]?.firstIndex(where: { $0.uuid == topic.uuid }) else { return }
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].isDefault = topic.isDefault
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].isDone = topic.isDone
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].color = topic.color
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].unreadCount = topic.unreadCount
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].notificationMode = topic.notificationMode
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].lastMessageUuid = topic.lastMessageUuid
-            streamTopics[topic.streamUuid]?[topicToUpdateIndex].lastMessage = messagePool.first(where: { $0.uuid == topic.lastMessageUuid })
-         }
-    }
-
-    func addTopicMessages(_ messages: [MessageResponseData], to streamUuid: String, and topicUuid: String) {
-        let messagesWithAuthor = messages.map {
-            var messageWithAuthor = $0
-            let author = users.first(where: { $0.uuid == messageWithAuthor.authorUuid })
-            messageWithAuthor.author = author
-            return messageWithAuthor
-        }
-        streamTopicMessages["\(streamUuid).\(topicUuid)"] = messagesWithAuthor
-    }
-
-    func addMessageToStreamTopic(message: MessageResponseData) {
-        let key = "\(message.streamUuid).\(message.topicUuid)"
-        var messageWithAuthor = message
-        let author = users.first(where: { $0.uuid == message.authorUuid })
-        messageWithAuthor.author = author
-        if streamTopicMessages[key] != nil {
-            streamTopicMessages[key]?.append(messageWithAuthor)
-        }
-    }
-
-    func updateMessageInStreamTopic(message: MessageResponseData) {
-        let key = "\(message.streamUuid).\(message.topicUuid)"
-        if streamTopicMessages[key] != nil {
-            guard let messageToUpdateIndex = streamTopicMessages[key]?.firstIndex(where: { $0.uuid == message.uuid }) else { return }
-            streamTopicMessages[key]?[messageToUpdateIndex].payload = message.payload
-            streamTopicMessages[key]?[messageToUpdateIndex].reactions = message.reactions
-         }
-    }
-
-    func setInitialMessagePool(_ messagePool: [MessageResponseData]) {
-        let messagesWithAuthor = messagePool.map {
-            var messageWithAuthor = $0
-            let author = users.first(where: { $0.uuid == messageWithAuthor.authorUuid })
-            messageWithAuthor.author = author
-            return messageWithAuthor
-        }
-        self.messagePool = messagesWithAuthor
-    }
-
-    func addMessagesToPool(_ newMessages: [MessageResponseData]) {
-        let messagesWithAuthor = newMessages.map {
-            var messageWithAuthor = $0
-            let author = users.first(where: { $0.id == messageWithAuthor.streamUuid })
-            messageWithAuthor.author = author
-            return messageWithAuthor
-        }
-        self.messagePool += messagesWithAuthor
-    }
-
-    func updateMessageInPool(_ message: MessageResponseData) {
-        guard let messageToUpdateIndex = messagePool.firstIndex(where: { $0.uuid == message.uuid }) else { return }
-        messagePool[messageToUpdateIndex].payload = message.payload
-        messagePool[messageToUpdateIndex].reactions = message.reactions
-    }
-
 
     func loadServerSettings() {
+        initialLoadingErrorViewModel = nil
         loadingState = .loading
         apiClient.createPublisher(for: ServerSettingsRequest(with: userProfile.selectedServer?.baseUrl ?? ""))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    self?.initialLoadingFailed()
                 }
-                self?.loadingState = .loaded
             } receiveValue: { [weak self] response in
                 guard let self else { return }
                 meetUrl = response.meetUrl
@@ -313,115 +86,784 @@ final class EventHandler {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    self?.initialLoadingFailed()
                 }
             } receiveValue: { [weak self] response in
                 self?.ownUser = response
-                self?.loadUsers()
+
+                self?.loadInitialData(with: response)
             }
             .store(in: &cancellables)
     }
 
-    func loadMessageReactions(for userUuid: String) {
-        apiClient.createPublisher(for: MessageReactionsRequest(userUuid: userUuid))
+    func loadInitialData(with ownUser: UserResponseData) {
+        Publishers.Zip4(apiClient.createPublisher(for: UsersRequest()), apiClient.createPublisher(for: StreamsRequest()), apiClient.createPublisher(for: TopicsRequest()), apiClient.createPublisher(for: StreamBindingsRequest()))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    self?.initialLoadingFailed()
                 }
-            } receiveValue: { [weak self] response in
-                self?.setInitialMessageReactions(response)
-                self?.loadUsers()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadUsers() {
-        loadingState = .loading
-        apiClient.createPublisher(for: UsersRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                self?.setInitialUsers(response)
-                self?.loadFolders()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadFolders() {
-        apiClient.createPublisher(for: FoldersRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                let sortedFolders = response.sorted { $0.createdAt < $1.createdAt
-                }
-                self?.setInitialFolders(sortedFolders)
-//                if self?.currentlySelectedFolder == nil {
-//                    self?.currentlySelectedFolder = sortedFolders.first
-//                }
-                self?.loadSubscribedStreams()
-            }
-            .store(in: &cancellables)
-    }
-
-    func loadSubscribedStreams() {
-        apiClient.createPublisher(for: StreamsRequest())
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
+            } receiveValue: { [weak self] usersResponse, streamsResponse, topicsResponse, streamBindingsResponse in
                 guard let self else { return }
-                let messageIds = response.compactMap { $0.lastMessageUuid }
-                apiClient.createPublisher(for: MessagesByIdsRequest(messageIds: messageIds))
-                    .receive(on: DispatchQueue.main)
-                    .sink { [weak self] completion in
-                        if case let .failure(error) = completion {
-                            // Error
-                        }
-                    } receiveValue: { [weak self] messagesResponse in
-                        guard let self else { return }
-                        self.setInitialMessagePool(messagesResponse)
-                        let streamsWithMessages = response.map { stream in
-                            var streamWithMessage = stream
-                            let message = self.messagePool.first(where: { message in
-                                message.uuid == stream.lastMessageUuid
-                            })
-                            let user = self.users.first { user in
-                                user.uuid == stream.directUserUuid
-                            }
-                            streamWithMessage.directUser = user
-                            streamWithMessage.lastMessage = message
-                            return streamWithMessage
-                        }
-                        self.setInitialStreams(streamsWithMessages)
-                        self.loadDrafts()
-                    }
-                    .store(in: &cancellables)
+                let initialData = InitialLoadingData(streams: streamsResponse, topics: topicsResponse, streamBindings: streamBindingsResponse, users: usersResponse, folders: [], drafts: [], messageReactions: [], messages: [])
+                self.loadAdditionalData(to: initialData, with: ownUser)
             }
             .store(in: &cancellables)
     }
 
-    func loadDrafts() {
-        apiClient.createPublisher(for: DraftsRequest())
+    func loadAdditionalData(to initialData: InitialLoadingData, with ownUser: UserResponseData) {
+        Publishers.Zip3(apiClient.createPublisher(for: MessageReactionsRequest(userUuid: ownUser.uuid)), apiClient.createPublisher(for: DraftsRequest()), apiClient.createPublisher(for: FoldersRequest()))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {
-                    // Error
+                    self?.initialLoadingFailed()
                 }
-            } receiveValue: { [weak self] response in
-                self?.setInitialDrafts(response)
-                self?.start()
+            } receiveValue: { [weak self] messageReactionsResponse, draftsResponse, foldersResponse in
+                guard let self else { return }
+                var updatedData = initialData
+                updatedData.messageReactions = messageReactionsResponse
+                updatedData.drafts = draftsResponse
+                updatedData.folders = foldersResponse
+                loadMessages(with: updatedData)
             }
             .store(in: &cancellables)
     }
+
+    func loadMessages(with initialData: InitialLoadingData) {
+        let streamMessageUuids = Set(initialData.streams.compactMap { $0.lastMessageUuid })
+        let topicMessageUuids = Set(initialData.topics.compactMap { $0.lastMessageUuid })
+        let messageUuids = Array(topicMessageUuids.union(streamMessageUuids))
+        var startIndex = messageUuids.startIndex
+        loadMessagesBatch(initialData: initialData, startIndex: startIndex, messageUuids: messageUuids)
+    }
+
+    func loadMessagesBatch(initialData: InitialLoadingData, startIndex: Int, messageUuids: [String]) {
+        let batchSize = 100
+        let endIndex = messageUuids.index(startIndex, offsetBy: batchSize, limitedBy: messageUuids.endIndex) ?? messageUuids.endIndex
+        let batch = Array(messageUuids[startIndex..<endIndex])
+        apiClient.createPublisher(for: MessagesByIdsRequest(messageIds: batch))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                if case let .failure(error) = completion {
+                    self?.initialLoadingFailed()
+                }
+            } receiveValue: { [weak self] messagesResponse in
+                guard let self else { return }
+
+                var updatedData = initialData
+                updatedData.messages.append(contentsOf: messagesResponse)
+
+                let newStartIndex = endIndex
+                if newStartIndex < messageUuids.endIndex {
+                    self.loadMessagesBatch(initialData: updatedData, startIndex: newStartIndex, messageUuids: messageUuids)
+                } else {
+                    self.loadingState = .loaded
+                    self.setInitialData(updatedData)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    func setInitialData(_ initialData: InitialLoadingData) {
+        do {
+            for newUserResponseData in initialData.users {
+                let userUuid = newUserResponseData.uuid
+                let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                    user.uuid == userUuid
+                })
+                let users = try userProfile.context.fetch(userFetchDescriptor)
+                let user = users.first
+                if let user {
+                    user.avatar = newUserResponseData.avatar
+                    user.email = newUserResponseData.email
+                    user.firstName = newUserResponseData.firstName
+                    user.lastName = newUserResponseData.lastName
+                    user.status = newUserResponseData.status
+                    user.statusEmoji = newUserResponseData.statusEmoji
+                    user.statusText = newUserResponseData.statusText
+                } else {
+                    let newUserData = UserData(with: newUserResponseData)
+                    userProfile.context.insert(newUserData)
+                }
+            }
+
+            for newStreamResponseData in initialData.streams {
+                let streamUuid = newStreamResponseData.uuid
+                let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                    stream.uuid == streamUuid
+                })
+                let streams = try userProfile.context.fetch(streamFetchDescriptor)
+                let stream = streams.first
+                if let stream {
+                    stream.unreadCount = newStreamResponseData.unreadCount
+                    stream.activeUnreadCount = newStreamResponseData.activeUnreadCount
+                    stream.passiveUnreadCount = newStreamResponseData.passiveUnreadCount
+                    stream.name = newStreamResponseData.name
+                    stream.isArchived = newStreamResponseData.isArchived
+                    stream.currentEncryptionKeyUuid = newStreamResponseData.currentEncryptionKeyUuid
+                    stream.notificationMode = newStreamResponseData.notificationMode
+                    stream.role = newStreamResponseData.role
+                } else {
+                    let newStreamData = StreamData(from: newStreamResponseData)
+                    if let directUserUuid = newStreamResponseData.directUserUuid {
+                        let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                            user.uuid == directUserUuid
+                        })
+                        let users = try? userProfile.context.fetch(userFetchDescriptor)
+                        let directUser = users?.first
+                        newStreamData.directUser = directUser
+                    }
+                    userProfile.context.insert(newStreamData)
+                }
+            }
+
+            for newTopicResponseData in initialData.topics {
+                let topicUuid = newTopicResponseData.uuid
+                let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+                    topic.uuid == topicUuid
+                })
+                let topic = try userProfile.context.fetch(topicFetchDescriptor).first
+                if let topic {
+                    topic.isDefault = newTopicResponseData.isDefault
+                    topic.isDone = newTopicResponseData.isDone
+                    topic.color = newTopicResponseData.color
+                    topic.unreadCount = newTopicResponseData.unreadCount
+                    let notificationMode: TopicNotificationMode
+                    switch newTopicResponseData.notificationMode {
+                    case .default:
+                        notificationMode = .default
+                    case .follow:
+                        notificationMode = .follow
+                    case .mute:
+                        notificationMode = .mute
+                    }
+                    topic.notificationMode = notificationMode
+                } else {
+                    let streamUuid = newTopicResponseData.streamUuid
+                    let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                        stream.uuid == streamUuid
+                    })
+                    let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+                    let stream = streams?.first
+                    if let stream {
+                        let newTopicData = TopicData(from: newTopicResponseData, stream: stream)
+                        userProfile.context.insert(newTopicData)
+                    }
+                }
+            }
+
+            try userProfile.context.save()
+
+            for newMessageResponseData in initialData.messages {
+                let messageUuid = newMessageResponseData.uuid
+                let messageFetchDescriptor = FetchDescriptor<LastMessageData>(predicate: #Predicate{ message in
+                    message.uuid == messageUuid
+                })
+                let messages = try userProfile.context.fetch(messageFetchDescriptor)
+                let message = messages.first
+                if let message {
+                    let payload: MessagePayload
+                    switch newMessageResponseData.payload {
+                    case let .e2ee(e2eePayload):
+                        payload = .e2ee(.init(kind: .e2ee, content: e2eePayload.content, keyUuid: e2eePayload.keyUuid))
+                    case let .keyAnnounced(keyAnnouncedPayload):
+                        payload = .keyAnnounced(.init(kind: .keyAnnounced, keyUuid: keyAnnouncedPayload.keyUuid))
+                    case let .keyGrant(keyGrantPayload):
+                        payload = .keyGrant(.init(kind: .keyGrant, keyUuid: keyGrantPayload.keyUuid, requestMessageUuid: keyGrantPayload.requestMessageUuid, senderDeviceId: keyGrantPayload.senderDeviceId, recipientDeviceId: keyGrantPayload.recipientDeviceId, content: keyGrantPayload.content))
+                    case let .keyReject(keyRejectPayload):
+                        payload = .keyReject(.init(kind: .keyReject, keyUuid: keyRejectPayload.keyUuid, requestMessageUuid: keyRejectPayload.requestMessageUuid, senderDeviceId: keyRejectPayload.senderDeviceId, recipientDeviceId: keyRejectPayload.recipientDeviceId))
+                    case let .keyRequest(keyRequestPayload):
+                        payload = .keyRequest(.init(kind: .keyRequest, keyUuid: keyRequestPayload.keyUuid, deviceId: keyRequestPayload.deviceId, deviceName: keyRequestPayload.deviceName, publicKey: keyRequestPayload.publicKey))
+                    case let .markdown(markdownPayload):
+                        payload = .markdown(.init(kind: .markdown, content: markdownPayload.content))
+                    case .undefined:
+                        payload = .undefined
+                    }
+                    message.payload = payload
+                    message.reactions = newMessageResponseData.reactions
+                } else {
+                    let streamUuid = newMessageResponseData.streamUuid
+                    let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                        stream.uuid == streamUuid
+                    })
+                    let streams = try userProfile.context.fetch(streamFetchDescriptor)
+                    let stream = streams.first
+
+                    let topicUuid = newMessageResponseData.topicUuid
+                    let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+                        topic.uuid == topicUuid
+                    })
+                    let topic = try userProfile.context.fetch(topicFetchDescriptor).first
+
+                    let userUuid = newMessageResponseData.authorUuid
+                    let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                        user.uuid == userUuid
+                    })
+                    let users = try userProfile.context.fetch(userFetchDescriptor)
+                    let author = users.first
+
+                    if let stream, let topic, let author {
+                        let newMessage = LastMessageData(with: newMessageResponseData, stream: stream, topic: topic, author: author)
+                        userProfile.context.insert(newMessage)
+                    }
+                }
+            }
+
+            for newStreamBindingResponseData in initialData.streamBindings {
+                let streamBindingUuid = newStreamBindingResponseData.uuid
+                let streamBindingFetchDescriptor = FetchDescriptor<StreamBindingData>(predicate: #Predicate{ streamBinding in
+                    streamBinding.uuid == streamBindingUuid
+                })
+                let streamBindings = try userProfile.context.fetch(streamBindingFetchDescriptor)
+                let streamBinding = streamBindings.first
+                if let streamBinding {
+                    streamBinding.role = newStreamBindingResponseData.role
+                } else {
+                    let streamUuid = newStreamBindingResponseData.uuid
+                    let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                        stream.uuid == streamUuid
+                    })
+                    let streams = try userProfile.context.fetch(streamFetchDescriptor)
+                    let stream = streams.first
+
+                    let userUuid = newStreamBindingResponseData.uuid
+                    let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                        user.uuid == userUuid
+                    })
+                    let users = try userProfile.context.fetch(userFetchDescriptor)
+                    let user = users.first
+
+                    if let stream, let user {
+                        let newStreamBindingData = StreamBindingData(uuid: newStreamBindingResponseData.uuid, role: newStreamBindingResponseData.role, stream: stream, user: user)
+                        userProfile.context.insert(newStreamBindingData)
+                    }
+                }
+            }
+
+            for newMessageReactionResponseData in initialData.messageReactions {
+                let messageReactionUuid = newMessageReactionResponseData.uuid
+                let messageReactionFetchDescriptor = FetchDescriptor<MessageReactionData>(predicate: #Predicate{ messageReaction in
+                    messageReaction.uuid == messageReactionUuid
+                })
+                let messageReactions = try userProfile.context.fetch(messageReactionFetchDescriptor)
+                let messageReaction = messageReactions.first
+                if messageReaction == nil {
+                    let userUuid = newMessageReactionResponseData.uuid
+                    let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                        user.uuid == userUuid
+                    })
+                    let users = try userProfile.context.fetch(userFetchDescriptor)
+                    let user = users.first
+
+                    if let user {
+                        let newMessageReactionData = MessageReactionData(with: newMessageReactionResponseData, user: user)
+                        userProfile.context.insert(newMessageReactionData)
+                    }
+                }
+            }
+
+            for folderResponseData in initialData.folders {
+                let folderUuid = folderResponseData.uuid
+                let folderFetchDescriptor = FetchDescriptor<FolderData>(predicate: #Predicate{ folder in
+                    folder.uuid == folderUuid
+                })
+                let folders = try userProfile.context.fetch(folderFetchDescriptor)
+                let folder = folders.first
+                if let folder {
+                    folder.unreadCount = folderResponseData.unreadCount
+                } else {
+                    let newFolderData = FolderData(with: folderResponseData)
+                    userProfile.context.insert(newFolderData)
+                }
+                if let folderItemsResponseData = folderResponseData.folderItems {
+                    for newFolderItemResponseData in folderItemsResponseData {
+                        let folderItemUuid = newFolderItemResponseData.uuid
+                        let folderItemFetchDescriptor = FetchDescriptor<FolderItemData>(predicate: #Predicate{ folderItem in
+                            folderItem.uuid == folderItemUuid
+                        })
+                        let folderItems = try userProfile.context.fetch(folderItemFetchDescriptor)
+                        let folderItem = folderItems.first
+                        if let folderItem {
+                            folderItem.unreadCount = newFolderItemResponseData.unreadCount
+                        } else {
+                            let folderUuid = folderResponseData.uuid
+                            let folderFetchDescriptor = FetchDescriptor<FolderData>(predicate: #Predicate{ folder in
+                                folder.uuid == folderUuid
+                            })
+                            let folders = try userProfile.context.fetch(folderFetchDescriptor)
+                            let folder = folders.first
+
+                            let streamUuid = newFolderItemResponseData.streamUuid
+                            let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                                stream.uuid == streamUuid
+                            })
+                            let streams = try userProfile.context.fetch(streamFetchDescriptor)
+                            let stream = streams.first
+
+                            if let folder, let stream {
+                                let newFolderItemData = FolderItemData(with: newFolderItemResponseData, stream: stream, folder: folder)
+                                userProfile.context.insert(newFolderItemData)
+                            }
+                        }
+                    }
+                }
+            }
+
+            for newDraftResponseData in initialData.drafts {
+                let draftUuid = newDraftResponseData.uuid
+                let draftFetchDescriptor = FetchDescriptor<DraftData>(predicate: #Predicate{ draft in
+                    draft.uuid == draftUuid
+                })
+                let drafts = try userProfile.context.fetch(draftFetchDescriptor)
+                let draft = drafts.first
+                if let draft {
+                    let payload: MessagePayload
+                    switch newDraftResponseData.payload {
+                    case let .e2ee(e2eePayload):
+                        payload = .e2ee(.init(kind: .e2ee, content: e2eePayload.content, keyUuid: e2eePayload.keyUuid))
+                    case let .keyAnnounced(keyAnnouncedPayload):
+                        payload = .keyAnnounced(.init(kind: .keyAnnounced, keyUuid: keyAnnouncedPayload.keyUuid))
+                    case let .keyGrant(keyGrantPayload):
+                        payload = .keyGrant(.init(kind: .keyGrant, keyUuid: keyGrantPayload.keyUuid, requestMessageUuid: keyGrantPayload.requestMessageUuid, senderDeviceId: keyGrantPayload.senderDeviceId, recipientDeviceId: keyGrantPayload.recipientDeviceId, content: keyGrantPayload.content))
+                    case let .keyReject(keyRejectPayload):
+                        payload = .keyReject(.init(kind: .keyReject, keyUuid: keyRejectPayload.keyUuid, requestMessageUuid: keyRejectPayload.requestMessageUuid, senderDeviceId: keyRejectPayload.senderDeviceId, recipientDeviceId: keyRejectPayload.recipientDeviceId))
+                    case let .keyRequest(keyRequestPayload):
+                        payload = .keyRequest(.init(kind: .keyRequest, keyUuid: keyRequestPayload.keyUuid, deviceId: keyRequestPayload.deviceId, deviceName: keyRequestPayload.deviceName, publicKey: keyRequestPayload.publicKey))
+                    case let .markdown(markdownPayload):
+                        payload = .markdown(.init(kind: .markdown, content: markdownPayload.content))
+                    case .undefined:
+                        payload = .undefined
+                    }
+                    draft.payload = payload
+                    draft.revision = newDraftResponseData.revision
+                    draft.updatedAt = newDraftResponseData.updatedAt
+                } else {
+                    let streamUuid = newDraftResponseData.streamUuid
+                    let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                        stream.uuid == streamUuid
+                    })
+                    let streams = try userProfile.context.fetch(streamFetchDescriptor)
+                    let stream = streams.first
+
+                    let topicUuid = newDraftResponseData.topicUuid
+                    let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+                        topic.uuid == topicUuid
+                    })
+                    let topic = try userProfile.context.fetch(topicFetchDescriptor).first
+
+                    if let stream, let topic {
+                        let newDraft = DraftData(with: newDraftResponseData, stream: stream, topic: topic)
+                        userProfile.context.insert(newDraft)
+                    }
+                }
+            }
+
+
+            try userProfile.context.save()
+            start()
+        } catch {
+            print(error)
+        }
+    }
+
+    func addMessageReaction(_ messageReaction: MessageReactionResponseData) {
+        let userUuid = messageReaction.userUuid
+        let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+            user.uuid == userUuid
+        })
+        let users = try? userProfile.context.fetch(userFetchDescriptor)
+        let user = users?.first
+        if let user {
+            let messageReactionData = MessageReactionData(with: messageReaction, user: user)
+            userProfile.context.insert(messageReactionData)
+            try? userProfile.context.save()
+        }
+    }
+
+    func deleteMessageReaction(_ messageReaction: MessageReactionResponseData) {
+        let messageReactionUuid = messageReaction.uuid
+        let messageReactionFetchDescriptor = FetchDescriptor<MessageReactionData>(predicate: #Predicate{ messageReaction in
+            messageReaction.uuid == messageReactionUuid
+        })
+        let messageReactions = try? userProfile.context.fetch(messageReactionFetchDescriptor)
+        let messageReactionData = messageReactions?.first
+        if let messageReactionData {
+            userProfile.context.delete(messageReactionData)
+            try? userProfile.context.save()
+        }
+    }
+
+    func setInitialUsers(_ users: [UserResponseData]) {
+        for userResponse in users {
+            let user = UserData(with: userResponse)
+            userProfile.context.insert(user)
+        }
+    }
+
+    func addUser(_ userResponse: UserResponseData) {
+        let user = UserData(with: userResponse)
+        userProfile.context.insert(user)
+    }
+
+    func updateUser(_ userResponse: UserResponseData) {
+        let user = UserData(with: userResponse)
+        userProfile.context.insert(user)
+        try? userProfile.context.save()
+    }
+
+    func addFolder(_ folderResponseData: FolderResponseData) {
+        let folderData = FolderData(with: folderResponseData)
+        userProfile.context.insert(folderData)
+        if let folderItemsResponseData = folderResponseData.folderItems {
+            let folderItemDataArray = folderItemsResponseData.compactMap { folderItemResponseData in
+                let streamUuid = folderItemResponseData.streamUuid
+                let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+                    stream.uuid == streamUuid
+                })
+                let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+                let stream = streams?.first
+                if let stream {
+                    return FolderItemData(with: folderItemResponseData, stream: stream, folder: folderData)
+                } else {
+                    return nil
+                }
+            }
+            for folderItemData in folderItemDataArray {
+                userProfile.context.insert(folderItemData)
+            }
+        }
+    }
+
+    func updateFolder(_ folderResponseData: FolderResponseData) {
+        addFolder(folderResponseData)
+    }
+
+    func setInitialStreams(_ streams: [StreamResponseData]) {
+        for streamResponse in streams {
+            let stream = StreamData(from: streamResponse)
+            userProfile.context.insert(stream)
+            try? userProfile.context.save()
+        }
+    }
+
+    func addStream(_ streamResponse: StreamResponseData) {
+        let stream = StreamData(from: streamResponse)
+        userProfile.context.insert(stream)
+    }
+
+    func updateStream(_ streamResponse: StreamResponseData) {
+        let stream = StreamData(from: streamResponse)
+        userProfile.context.insert(stream)
+        try? userProfile.context.save()
+    }
+
+    func setInitialTopics(_ topics: [TopicResponseData]) {
+        for topicResponse in topics {
+            addTopic(topicResponse)
+        }
+    }
+
+    func addTopic(_ topicResponse: TopicResponseData) {
+        let streamUuid = topicResponse.streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        if let stream {
+            let topic = TopicData(from: topicResponse, stream: stream)
+            userProfile.context.insert(topic)
+            try? userProfile.context.save()
+        }
+    }
+
+    func updateTopic(_ topicResponse: TopicResponseData) {
+        let topicUuid = topicResponse.uuid
+        let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+            topic.uuid == topicUuid
+        })
+        let topic = try? userProfile.context.fetch(topicFetchDescriptor).first
+        if let topic {
+            topic.isDefault = topicResponse.isDefault
+            topic.isDone = topicResponse.isDone
+            topic.color = topicResponse.color
+            topic.unreadCount = topicResponse.unreadCount
+            let notificationMode: TopicNotificationMode
+            switch topicResponse.notificationMode {
+            case .default:
+                notificationMode = .default
+            case .follow:
+                notificationMode = .follow
+            case .mute:
+                notificationMode = .mute
+            }
+            topic.notificationMode = notificationMode
+        }
+    }
+
+    func setInitialMessages(_ messages: [MessageResponseData]) {
+        for message in messages {
+            setInitialMessage(message)
+        }
+    }
+
+    func setInitialMessage(_ message: MessageResponseData) {
+        let streamUuid = message.streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        let topicUuid = message.topicUuid
+        let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+            topic.uuid == topicUuid
+        })
+        let topic = try? userProfile.context.fetch(topicFetchDescriptor).first
+        if let stream, let topic {
+            let message = MessageData(with: message, stream: stream, topic: topic)
+            let messageAuthorUuid = message.authorUuid
+            let authorFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+                user.uuid == messageAuthorUuid
+            })
+            let authors = try? userProfile.context.fetch(authorFetchDescriptor)
+            let author = authors?.first
+            message.author = author
+
+            userProfile.context.insert(message)
+
+
+            try? userProfile.context.save()
+        }
+    }
+    func addDraft(_ draftResponseData: DraftResponseData) {
+        let streamUuid = draftResponseData.streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        let topicUuid = draftResponseData.topicUuid
+        let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+            topic.uuid == topicUuid
+        })
+        let topic = try? userProfile.context.fetch(topicFetchDescriptor).first
+        if let stream, let topic {
+            let draft = DraftData(with: draftResponseData, stream: stream, topic: topic)
+
+            userProfile.context.insert(draft)
+
+
+            try? userProfile.context.save()
+        }
+    }
+
+    func updateDraft(_ draft: DraftResponseData) {
+        addDraft(draft)
+    }
+
+    func addBinding(_ bindingResponseData: StreamBindingResponseData) {
+        let streamUuid = bindingResponseData.streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        let userUuid = bindingResponseData.userUuid
+        let userFetchDescriptor = FetchDescriptor<UserData>(predicate: #Predicate{ user in
+            user.uuid == userUuid
+        })
+        let users = try? userProfile.context.fetch(userFetchDescriptor)
+        let user = users?.first
+        if let stream, let user {
+            let streamBindingData = StreamBindingData(uuid: bindingResponseData.uuid, role: bindingResponseData.role, stream: stream, user: user)
+
+            userProfile.context.insert(streamBindingData)
+
+
+            try? userProfile.context.save()
+        }
+    }
+
+    func updateBinding(_ binding: StreamBindingResponseData) {
+        addBinding(binding)
+    }
+
+//    func setInitialMessagePool(_ messagePool: [MessageResponseData]) {
+//        let messagesWithAuthor = messagePool.map {
+//            var messageWithAuthor = $0
+////            let author = users.first(where: { $0.uuid == messageWithAuthor.authorUuid })
+////            messageWithAuthor.author = author
+//            return messageWithAuthor
+//        }
+//        self.messagePool = messagesWithAuthor
+//    }
+
+    func addMessages(_ messageResponseDataArray: [MessageResponseData], streamUuid: String, topicUuid: String) {
+        let streamUuid = streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        let topicUuid = topicUuid
+        let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+            topic.uuid == topicUuid
+        })
+        let topic = try? userProfile.context.fetch(topicFetchDescriptor).first
+        if let stream, let topic {
+            for messageResponseData in messageResponseDataArray {
+                addMessage(messageResponseData, streamData: stream, topicData: topic)
+            }
+        }
+    }
+
+    func addMessage(_ messageResponseData: MessageResponseData, streamData: StreamData, topicData: TopicData) {
+        let messageData = MessageData(with: messageResponseData, stream: streamData, topic: topicData)
+
+        userProfile.context.insert(messageData)
+
+
+        try? userProfile.context.save()
+    }
+
+    func addMessage(_ messageResponseData: MessageResponseData) {
+        let streamUuid = messageResponseData.streamUuid
+        let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
+            stream.uuid == streamUuid
+        })
+        let streams = try? userProfile.context.fetch(streamFetchDescriptor)
+        let stream = streams?.first
+        let topicUuid = messageResponseData.topicUuid
+        let topicFetchDescriptor = FetchDescriptor<TopicData>(predicate: #Predicate{ topic in
+            topic.uuid == topicUuid
+        })
+        let topic = try? userProfile.context.fetch(topicFetchDescriptor).first
+        if let stream, let topic {
+            let messageData = MessageData(with: messageResponseData, stream: stream, topic: topic)
+
+            userProfile.context.insert(messageData)
+
+
+            try? userProfile.context.save()
+        }
+    }
+
+    func updateMessage(_ messageResponseData: MessageResponseData) {
+        addMessage(messageResponseData)
+    }
+
+    func initialLoadingFailed() {
+        loadingState = .error
+        initialLoadingErrorViewModel = .init(actionToRepeat: loadServerSettings)
+    }
+
+//    func loadMessageReactions(for userUuid: String) {
+//        apiClient.createPublisher(for: MessageReactionsRequest(userUuid: userUuid))
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                self?.setInitialMessageReactions(response)
+//                self?.loadUsers()
+//            }
+//            .store(in: &cancellables)
+//    }
+
+//    func loadUsers() {
+//        loadingState = .loading
+//        apiClient.createPublisher(for: UsersRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                guard let self else { return }
+////                self.setInitialUsers(response)
+//                self.loadFolders(users: response)
+//            }
+//            .store(in: &cancellables)
+//    }
+//
+//    func loadFolders(users: [UserResponseData]) {
+//        apiClient.createPublisher(for: FoldersRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                let sortedFolders = response.sorted { $0.createdAt < $1.createdAt
+//                }
+////                self?.setInitialFolders(sortedFolders)
+//                self?.loadSubscribedStreams(users: users, folders: sortedFolders)
+//            }
+//            .store(in: &cancellables)
+//    }
+//
+//    func loadSubscribedStreams(users: [UserResponseData], folders: [FolderResponseData]) {
+//        apiClient.createPublisher(for: StreamsRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                guard let self else { return }
+//                self.loadStreamBindings(for: response)
+//            }
+//            .store(in: &cancellables)
+//    }
+//
+//    func loadStreamBindings(for streams: [StreamResponseData]) {
+//        apiClient.createPublisher(for: StreamBindingsRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                guard let self else { return }
+//                self.setInitialStreams(streams)
+//                let streamMessageUuids = Set(streams.compactMap { $0.lastMessageUuid })
+//                self.loadAllTopics(with: streamMessageUuids)
+//            }
+//            .store(in: &cancellables)
+//    }
+//
+//    func loadAllTopics(with streamMessageUuids: Set<String>) {
+//        apiClient.createPublisher(for: TopicsRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                self?.setInitialTopics(response)
+//                let topicMessageUuids = Set(response.compactMap { $0.lastMessageUuid })
+//                let messageUuidsToLoad = topicMessageUuids.union(streamMessageUuids)
+//                self?.loadMessages(with: Array(messageUuidsToLoad))
+//                self?.loadingState = .loaded
+//            }
+//            .store(in: &cancellables)
+//    }
+//
+//    func loadDrafts() {
+//        apiClient.createPublisher(for: DraftsRequest())
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] completion in
+//                if case let .failure(error) = completion {
+//                    self?.initialLoadingFailed()
+//                }
+//            } receiveValue: { [weak self] response in
+//                self?.setInitialDrafts(response)
+//                self?.start()
+//                self?.loadingState = .loaded
+//            }
+//            .store(in: &cancellables)
+//    }
 
     func start() {
         apiClient.createPublisher(for: EpochRequest())
@@ -467,6 +909,8 @@ final class EventHandler {
             didReceiveStreamEvent(eventData: eventData, action: event.action)
         case .topic:
             didReceiveTopicEvent(eventData: eventData, action: event.action)
+        case .user:
+            didReceiveUserEvent(eventData: eventData, action: event.action)
         default:
             break
         }
@@ -476,13 +920,11 @@ final class EventHandler {
         switch action {
         case .updated:
             if let message = try? payload(MessageResponseData.self, data: eventData) {
-                updateMessageInStreamTopic(message: message)
-                updateMessageInPool(message)
+                updateMessage(message)
             }
         case .created:
             if let message = try? payload(MessageResponseData.self, data: eventData) {
-                addMessageToStreamTopic(message: message)
-                addMessagesToPool([message])
+                addMessage(message)
             }
         case .deleted:
             break
@@ -492,12 +934,27 @@ final class EventHandler {
     func didReceiveStreamEvent(eventData: Data, action: ReceivedEventAction) {
         switch action {
         case .updated:
-            if let stream = try? payload(StreamData.self, data: eventData) {
+            if let stream = try? payload(StreamResponseData.self, data: eventData) {
                 updateStream(stream)
             }
         case .created:
-            if let stream = try? payload(StreamData.self, data: eventData) {
+            if let stream = try? payload(StreamResponseData.self, data: eventData) {
                 addStream(stream)
+            }
+        case .deleted:
+            break
+        }
+    }
+
+    func didReceiveUserEvent(eventData: Data, action: ReceivedEventAction) {
+        switch action {
+        case .updated:
+            if let user = try? payload(UserResponseData.self, data: eventData) {
+                updateUser(user)
+            }
+        case .created:
+            if let user = try? payload(UserResponseData.self, data: eventData) {
+                addUser(user)
             }
         case .deleted:
             break
@@ -507,13 +964,12 @@ final class EventHandler {
     func didReceiveTopicEvent(eventData: Data, action: ReceivedEventAction) {
         switch action {
         case .updated:
-            if let topic = try? payload(TopicsResponseData.self, data: eventData) {
+            if let topic = try? payload(TopicResponseData.self, data: eventData) {
                 updateTopic(topic)
             }
         case .created:
-            if let topic = try? payload(TopicsResponseData.self, data: eventData) {
+            if let topic = try? payload(TopicResponseData.self, data: eventData) {
                 addTopic(topic)
-                addTopicsToPool([topic])
             }
         case .deleted:
             break

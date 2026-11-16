@@ -7,7 +7,7 @@
 import Foundation
 
 struct StreamsRequest: APIRequest {
-    typealias Response = [StreamData]
+    typealias Response = [StreamResponseData]
     typealias ResponseError = EmptyDecodableError
 
     var resource: ResourceType {
@@ -20,7 +20,7 @@ struct StreamsRequest: APIRequest {
 }
 
 
-struct StreamData: Decodable, Identifiable, Hashable {
+struct StreamResponseData: Decodable, Identifiable, Hashable {
     let uuid: String
     var unreadCount: Int
     var activeUnreadCount: Int
@@ -28,12 +28,16 @@ struct StreamData: Decodable, Identifiable, Hashable {
     let name: String
     let isPrivate: Bool
     let color: Int
+    let hasEncryption: Bool
+    var isArchived: Bool
+    let currentEncryptionKeyUuid: String?
     var lastMessageUuid: String?
     var lastMessage: MessageResponseData?
     let directUserUuid: String?
     var directUser: UserResponseData?
     let defaultTopicUuid: String?
     var notificationMode: String
+    var role: String
 
     var id: String {
         return uuid
@@ -47,15 +51,13 @@ struct StreamData: Decodable, Identifiable, Hashable {
         case name
         case isPrivate = "private"
         case color
+        case isArchived = "is_archived"
+        case hasEncryption = "encryption"
+        case currentEncryptionKeyUuid = "current_encryption_key_uuid"
         case lastMessageUuid = "last_message_uuid"
         case directUserUuid = "direct_user_uuid"
         case defaultTopicUuid = "default_topic_uuid"
         case notificationMode = "notification_mode"
-    }
-
-    var avatarString: String? {
-        guard isPrivate, let avatar = directUser?.avatar else { return nil }
-
-        return avatar
+        case role
     }
 }

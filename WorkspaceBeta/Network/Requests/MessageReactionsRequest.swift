@@ -7,7 +7,7 @@
 import Foundation
 
 struct MessageReactionsRequest: APIRequest {
-    typealias Response = [MessageReaction]
+    typealias Response = [MessageReactionResponseData]
     typealias ResponseError = EmptyDecodableError
 
     let userUuid: String
@@ -30,7 +30,7 @@ struct MessageReactionsRequest: APIRequest {
 }
 
 
-struct MessageReaction: Decodable {
+struct MessageReactionResponseData: Decodable {
     let uuid: String
     let userUuid: String
     let emojiName: String

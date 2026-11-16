@@ -14,7 +14,6 @@ final class CreateDirectStreamViewModel: ObservableObject {
     private(set) var apiClient: APIClient
     let userProfile: UserProfile
     private(set) var eventHandler: EventHandler
-    @Published var users: [UserResponseData]
     var onSuccess: (String, String) -> Void
 
     private var cancellables: Set<AnyCancellable> = []
@@ -24,19 +23,12 @@ final class CreateDirectStreamViewModel: ObservableObject {
         self.model = model
         self.userProfile = userProfile
         self.eventHandler = eventHandler
-        self.users = eventHandler.users
         self.onSuccess = onSuccess
 
-        subscribeToEvents()
     }
 
-    func subscribeToEvents() {
-        eventHandler.usersPublisher
-            .assign(to: &$users)
-    }
-
-    func onTap(on user: UserResponseData) {
-        apiClient.createPublisher(for: AddStreamRequest(with: user.displayableName, description: user.username, directUserUuid: user.uuid))
+    func onTap(on user: UserData) {
+        apiClient.createPublisher(for: AddStreamRequest(with: user.displayableName, description: user.username, directUserUuid: user.uuid, isEncrypted: false, currentEncryptionKeyUuid: nil))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 if case let .failure(error) = completion {

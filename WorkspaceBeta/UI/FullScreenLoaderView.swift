@@ -37,18 +37,22 @@ struct FullScreenLoaderView: View {
 
     var body: some View {
 
-        return Image(uiImage: images[index])
-            .resizable()
-            .frame(width: 50, height: 50, alignment: .center)
-            .onReceive(
-                timer.publisher,
-                perform: { _ in
-                    self.index = self.index + 1
-                    if self.index >= 7 { self.index = 0 }
-                }
-            )
-            .onAppear { self.timer.start() }
-            .onDisappear { self.timer.cancel() }
+        ZStack {
+            Color.white.opacity(0.7)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Image(uiImage: images[index])
+                .resizable()
+                .frame(width: 56, height: 65, alignment: .center)
+                .onReceive(
+                    timer.publisher,
+                    perform: { _ in
+                        self.index = self.index + 1
+                        if self.index >= 7 { self.index = 0 }
+                    }
+                )
+                .onAppear { self.timer.start() }
+                .onDisappear { self.timer.cancel() }
+        }
     }
 }
 

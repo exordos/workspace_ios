@@ -18,13 +18,12 @@ final class ChatChannelsViewModel: ObservableObject {
     private(set) var apiClient: APIClient
     let userProfile: UserProfile
     private(set) var eventHandler: EventHandler
-    private var loadedSubscriptions: [StreamData] = []
     @Published var selectedStream: StreamData?
-    @Published var loadedTopics: [TopicsResponseData] = []
-    @Published var streams: [StreamData] = []
+    @Published var loadedTopics: [TopicData] = []
     @Published var poolMessages: [MessageResponseData] = []
-    @Published var users: [UserResponseData] = []
-    @Published var streamTopics: [String: [TopicsResponseData]] = [:]
+    @Published var streamTopics: [String: [TopicResponseData]] = [:]
+    @Published var streamBindings: [String: [StreamBindingResponseData]] = [:]
+    @Published var errorViewModel: FullScreenErrorViewModel?
 
 
     private var cancellables: Set<AnyCancellable> = []
@@ -53,65 +52,27 @@ final class ChatChannelsViewModel: ObservableObject {
     }
 
     func subscribeToEvents() {
-        eventHandler.streamsPublisher
-            .assign(to: &$streams)
+        eventHandler.loadingStatePublisher
+            .assign(to: &$loadingState)
 
-        eventHandler.messagePoolPublisher
-            .assign(to: &$poolMessages)
-
-        eventHandler.usersPublisher
-            .assign(to: &$users)
-
-        eventHandler.streamTopicsPublisher
-            .assign(to: &$streamTopics)
+        eventHandler.initialLoadingErrorPublisher
+            .assign(to: &$errorViewModel)
     }
 
     func onTap(on stream: StreamData) {
-        if let topics = streamTopics[stream.uuid] {
-            loadedTopics = topics
-        } else {
-            loadTopics(for: stream)
-        }
+        loadedTopics = stream.topics
+//        if streamBindings[stream.uuid] != nil {
+//            if let topics = streamTopics[stream.uuid] {
+//                loadedTopics = stream.topics
+//            } else {
+//                loadTopics(for: stream)
+//            }
+//        } else {
+//            loadBindings(for: stream)
+//        }
     }
 
-    func loadTopics(for stream: StreamData) {
-        loadedTopics.removeAll()
-        apiClient.createPublisher(for: TopicsRequest(streamUuid: [stream.uuid]))
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                if case let .failure(error) = completion {
-                    // Error
-                }
-            } receiveValue: { [weak self] response in
-                guard let self else { return }
-                let messageIds = response.compactMap { $0.lastMessageUuid }
-                apiClient.createPublisher(for: MessagesByIdsRequest(messageIds: messageIds))
-                    .receive(on: DispatchQueue.main)
-                    .sink { [weak self] completion in
-                        if case let .failure(error) = completion {
-                            // Error
-                        }
-                    } receiveValue: { [weak self] messagesResponse in
-                        guard let self else { return }
-                        self.eventHandler.setInitialMessagePool(messagesResponse)
-                        let topicsWithMessages = response.map { topic in
-                            var topicWithMessage = topic
-                            let message = self.poolMessages.first(where: { message in
-                                message.uuid == topic.lastMessageUuid
-                            })
-                            topicWithMessage.lastMessage = message
-                            return topicWithMessage
-                        }
-                        self.eventHandler.addTopics(topicsWithMessages, to: stream.uuid)
-                        self.eventHandler.addTopicsToPool(topicsWithMessages)
-                        loadedTopics = topicsWithMessages
-                    }
-                    .store(in: &cancellables)
-            }
-            .store(in: &cancellables)
-    }
-
-    func setNextNotificationMode(for topic: TopicsResponseData) {
+    func setNextNotificationMode(for topic: TopicData) {
         let nextNotificationMode: TopicNotificationMode = switch topic.notificationMode {
         case .mute:
                 .default
