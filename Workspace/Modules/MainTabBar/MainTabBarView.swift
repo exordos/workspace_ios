@@ -13,9 +13,19 @@ struct MainTabBarView: View {
     @ObservedObject var userProfile: UserProfile
 
     @State var selectedTabIndex: Int = 0
+    @ObservedObject private var push = PushNotifications.shared
 
     var body: some View {
         contentView
+            .task(id: push.pendingTap) {
+                guard let route = push.pendingTap else { return }
+                let opened = await viewModel.chatChannelsViewModel.openNotification(route)
+                guard !Task.isCancelled, push.pendingTap == route else { return }
+                if opened {
+                    selectedTabIndex = 2
+                }
+                push.pendingTap = nil
+            }
     }
 
     private var contentView: some View {

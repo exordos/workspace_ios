@@ -25,6 +25,7 @@ final class ProfileViewModel: ObservableObject {
     }
 
     func logout() {
+        PushNotifications.shared.endSession()
         userProfile.selectedServer?.projectUuid = nil
     }
 }

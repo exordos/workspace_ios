@@ -65,14 +65,14 @@ struct KeychainItem {
         try saveItem(encodedItem)
     }
 
-    func saveItem(_ item: Data) throws {
+    func saveItem(_ item: Data, accessibility: CFString = kSecAttrAccessibleAfterFirstUnlock) throws {
         do {
 
             try _ = readItem()
 
             var attributesToUpdate = [String: AnyObject]()
             attributesToUpdate[kSecValueData as String] = item as AnyObject?
-            attributesToUpdate[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            attributesToUpdate[kSecAttrAccessible as String] = accessibility
 
             let query = keychainQuery(with: service, account: account, accessGroup: accessGroup)
             let status = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
@@ -82,7 +82,7 @@ struct KeychainItem {
 
             var newItem = keychainQuery(with: service, account: account, accessGroup: accessGroup)
             newItem[kSecValueData as String] = item as AnyObject?
-            newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            newItem[kSecAttrAccessible as String] = accessibility
 
             let status = SecItemAdd(newItem as CFDictionary, nil)
 

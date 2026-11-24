@@ -8,7 +8,7 @@ import SwiftUI
 import SwiftData
 import JitsiMeetSDK
 import FirebaseCore
-import FirebaseMessaging
+import UserNotifications
 
 @main
 struct WorkspaceApp: App {
@@ -39,15 +39,20 @@ struct WorkspaceApp: App {
     }()
 
     @StateObject var userProfile: UserProfile
+    @Environment(\.scenePhase) private var scenePhase
 
     var viewModel: WorkspaceAppViewModel
 
     var body: some Scene {
         WindowGroup {
             mainView
-                .onAppear {
-                    WorkspaceAPIClient.current.userProfile = userProfile
-                    viewModel.userProfile = userProfile
+                .task(id: userProfile.pushSession) {
+                    PushNotifications.shared.synchronize()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        PushNotifications.shared.synchronize()
+                    }
                 }
         }
         .modelContainer(sharedModelContainer)
@@ -56,7 +61,8 @@ struct WorkspaceApp: App {
     init() {
         let userProfile = UserProfile(context: sharedModelContainer.mainContext)
         self._userProfile = StateObject(wrappedValue: userProfile)
-        WorkspaceAPIClient()
+        WorkspaceAPIClient().userProfile = userProfile
+        PushNotifications.shared.profile = userProfile
         self.viewModel = WorkspaceAppViewModel(with: WorkspaceAPIClient.current, userProfile: userProfile)
     }
 
@@ -104,82 +110,38 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
         JitsiMeet.sharedInstance().defaultConferenceOptions = defaultOptions
         FirebaseApp.configure()
-
-
-        Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
 
-        let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
-        UNUserNotificationCenter.current().requestAuthorization(
-          options: authOptions,
-          completionHandler: { _, _ in }
-        )
-
-        application.registerForRemoteNotifications()
-
-        let jitsiStarted = JitsiMeet.sharedInstance().application(
+        return JitsiMeet.sharedInstance().application(
             application,
             didFinishLaunchingWithOptions: launchOptions ?? [:]
         )
-        return jitsiStarted
     }
 
-    public func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        Messaging.messaging().apnsToken = deviceToken
-        print(tokenString)
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        PushNotifications.shared.receivedDeviceToken(deviceToken)
     }
 
-//    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-//        print(userInfo)
-//
-//        Messaging.messaging().appDidReceiveMessage(userInfo)
-//        completionHandler(.newData)
-//    }
-
-//    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-//        if let kind = userInfo["kind"] as? String {
-//            switch kind {
-//            case "remove_notification_message":
-//                if let messageIdsString = userInfo["message_ids"] as? String {
-//                    let messageIds = messageIdsString.split(separator: ",").map(String.init)
-//                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: messageIds)
-//                }
-//            case "private_chat_message":
-//                if let messageId = userInfo["workspace_message_id"] as? String,
-//                   let senderFullName = userInfo["sender_full_name"] as? String,
-//                   let messageContent = userInfo["content"] as? String {
-//                    let content = UNMutableNotificationContent()
-//                    content.title = senderFullName
-//                    content.body = messageContent
-//                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
-//                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
-//                }
-//             case "stream_chat_message":
-//                if let messageId = userInfo["workspace_message_id"] as? String,
-//                   let senderFullName = userInfo["sender_full_name"] as? String,
-//                   let messageContent = userInfo["content"] as? String,
-//                   let stream = userInfo["stream"] as? String,
-//                   let topic = userInfo["topic"] as? String {
-//                    let content = UNMutableNotificationContent()
-//                    content.title = "\(stream) -> \(topic)"
-//                    content.body = "\(senderFullName): \(messageContent)"
-//                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: .zero, repeats: false)
-//                    let request = UNNotificationRequest(identifier: messageId, content: content, trigger: trigger)
-//                }
-//            default:
-//                break
-//            }
-//        }
-//        Messaging.messaging().appDidReceiveMessage(userInfo)
-//        print(userInfo)
-//        return UIBackgroundFetchResult.newData
-//    }
-}
-
-extension AppDelegate: MessagingDelegate {
-    @objc func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        print(fcmToken)
+    func application(
+        _ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        await PushNotifications.shared.processReadUpdate(userInfo) ? .newData : .noData
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        let userInfo = notification.request.content.userInfo
+        if await PushNotifications.shared.canPresent(userInfo) {
+            return [.banner, .list, .sound]
+        }
+        return []
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+    ) async {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        await PushNotifications.shared.open(response.notification.request.content.userInfo)
+    }
 }

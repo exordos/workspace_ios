@@ -43,6 +43,8 @@ struct ServerSettingsResponseData: Decodable {
     let realmIcon: String
     let realmUrl: String
     let meetUrl: String
+    let apnsPushNotificationsEnabled: Bool?
+    let organizationUuid: String?
 
     enum CodingKeys: String, CodingKey {
         case isEmailAuthEnabled = "email_auth_enabled"
@@ -50,5 +52,7 @@ struct ServerSettingsResponseData: Decodable {
         case realmIcon = "realm_icon"
         case realmUrl = "realm_url"
         case meetUrl = "meet_url"
+        case apnsPushNotificationsEnabled = "apns_push_notifications_enabled"
+        case organizationUuid = "organization_uuid"
     }
 }

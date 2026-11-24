@@ -10,7 +10,7 @@ import Combine
 import SwiftData
 
 enum ChatNavigationDestination: Hashable {
-    case messages(String, String, Bool)
+    case messages(String, String, Bool, anchor: String? = nil)
     case streamInfo(String, String)
     case streamSettings(String, String)
     case streamKeySettings(String, String)
@@ -166,8 +166,8 @@ struct ChatChannelsView: View {
             }
             .navigationDestination(for: ChatNavigationDestination.self) { value in
                 switch value {
-                case let .messages(streamUuid, topicUuid, isDirectMessages):
-                    ChatAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, isDirectMessages: isDirectMessages, eventHandler: viewModel.eventHandler) {
+                case let .messages(streamUuid, topicUuid, isDirectMessages, anchor):
+                    ChatAssembly().assemble(streamUuid: streamUuid, topicUuid: topicUuid, isDirectMessages: isDirectMessages, eventHandler: viewModel.eventHandler, initialMessageUuid: anchor) {
                         path.append(ChatNavigationDestination.streamInfo(streamUuid, topicUuid))
                     } onUserTap: { _ in
 
@@ -213,8 +213,10 @@ struct ChatChannelsView: View {
             )
 
         }
-        .onAppear {
-            viewModel.onAppear()
+        .onReceive(viewModel.$notificationDestination) { destination in
+            guard let destination else { return }
+            path = NavigationPath([destination])
+            viewModel.notificationDestination = nil
         }
         .showLoader(viewModel.loadingState == .loading)
         .fullScreenError(errorViewModel: $viewModel.errorViewModel)

@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		BEECD2C42FD89B1E00A11A29 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = BEECD2C32FD89B1E00A11A29 /* FirebaseCore */; };
 		BEECD2C62FD89B1E00A11A29 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = BEECD2C52FD89B1E00A11A29 /* FirebaseCrashlytics */; };
-		BEECD2C82FD89B1E00A11A29 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = BEECD2C72FD89B1E00A11A29 /* FirebaseMessaging */; };
 		BEECD2DE2FE1A79500A11A29 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = BEECD2DD2FE1A79500A11A29 /* Kingfisher */; };
 		BEFE76CF2F79B336002AA135 /* JitsiMeetSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BEFE76CE2F79B336002AA135 /* JitsiMeetSDK */; };
 /* End PBXBuildFile section */
@@ -73,7 +72,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BEECD2C82FD89B1E00A11A29 /* FirebaseMessaging in Frameworks */,
 				BEECD2C62FD89B1E00A11A29 /* FirebaseCrashlytics in Frameworks */,
 				BEECD2C42FD89B1E00A11A29 /* FirebaseCore in Frameworks */,
 				BEFE76CF2F79B336002AA135 /* JitsiMeetSDK in Frameworks */,
@@ -149,7 +147,6 @@
 				BEFE76CE2F79B336002AA135 /* JitsiMeetSDK */,
 				BEECD2C32FD89B1E00A11A29 /* FirebaseCore */,
 				BEECD2C52FD89B1E00A11A29 /* FirebaseCrashlytics */,
-				BEECD2C72FD89B1E00A11A29 /* FirebaseMessaging */,
 				BEECD2DD2FE1A79500A11A29 /* Kingfisher */,
 			);
 			productName = Workspace;
@@ -444,6 +441,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Workspace/Workspace.entitlements;
+				WORKSPACE_APNS_ENVIRONMENT = development;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 572L26ZP26;
@@ -488,6 +486,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Workspace/Workspace.entitlements;
+				WORKSPACE_APNS_ENVIRONMENT = production;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 572L26ZP26;
@@ -696,11 +695,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BEECD2C22FD89B1E00A11A29 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCrashlytics;
-		};
-		BEECD2C72FD89B1E00A11A29 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BEECD2C22FD89B1E00A11A29 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
 		};
 		BEECD2DD2FE1A79500A11A29 /* Kingfisher */ = {
 			isa = XCSwiftPackageProductDependency;
