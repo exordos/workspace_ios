@@ -228,16 +228,7 @@ final class EventHandler {
                     topic.isDone = newTopicResponseData.isDone
                     topic.color = newTopicResponseData.color
                     topic.unreadCount = newTopicResponseData.unreadCount
-                    let notificationMode: TopicNotificationMode
-                    switch newTopicResponseData.notificationMode {
-                    case .default:
-                        notificationMode = .default
-                    case .follow:
-                        notificationMode = .follow
-                    case .mute:
-                        notificationMode = .mute
-                    }
-                    topic.notificationMode = notificationMode
+                    topic.notificationMode = newTopicResponseData.notificationMode
                 } else {
                     let streamUuid = newTopicResponseData.streamUuid
                     let streamFetchDescriptor = FetchDescriptor<StreamData>(predicate: #Predicate{ stream in
@@ -588,16 +579,7 @@ final class EventHandler {
             topic.isDone = topicResponse.isDone
             topic.color = topicResponse.color
             topic.unreadCount = topicResponse.unreadCount
-            let notificationMode: TopicNotificationMode
-            switch topicResponse.notificationMode {
-            case .default:
-                notificationMode = .default
-            case .follow:
-                notificationMode = .follow
-            case .mute:
-                notificationMode = .mute
-            }
-            topic.notificationMode = notificationMode
+            topic.notificationMode = topicResponse.notificationMode
         }
     }
 

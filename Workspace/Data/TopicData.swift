@@ -37,16 +37,7 @@ class TopicData: Identifiable, Hashable {
         self.isDefault = topicResponseData.isDefault
         self.color = topicResponseData.color
         self.updatedAt = topicResponseData.updatedAt
-        let notificationMode: TopicNotificationMode
-        switch topicResponseData.notificationMode {
-        case .default:
-            notificationMode = .default
-        case .follow:
-            notificationMode = .follow
-        case .mute:
-            notificationMode = .mute
-        }
-        self.notificationMode = notificationMode
+        self.notificationMode = topicResponseData.notificationMode
         self.stream = stream
     }
 }
@@ -55,6 +46,7 @@ enum TopicNotificationMode: String, Codable {
     case mute
     case `default`
     case follow
+    case unmute
 }
 
 extension TopicData {

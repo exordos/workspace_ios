@@ -43,7 +43,7 @@ struct TopicResponseData: Decodable, Identifiable, Hashable {
     var updatedAt: Date
     var lastMessageUuid: String?
     var lastMessage: MessageResponseData?
-    var notificationMode: TopicResponseNotificationMode
+    var notificationMode: TopicNotificationMode
 
     var id: String {
         return uuid
@@ -62,10 +62,4 @@ struct TopicResponseData: Decodable, Identifiable, Hashable {
         case updatedAt = "updated_at"
         case notificationMode = "notification_mode"
     }
-}
-
-enum TopicResponseNotificationMode: String, Codable {
-    case mute
-    case `default`
-    case follow
 }

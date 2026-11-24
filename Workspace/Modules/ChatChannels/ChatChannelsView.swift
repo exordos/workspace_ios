@@ -326,7 +326,7 @@ struct TopicHeaderView: View {
                         viewModel.setNextNotificationMode(for: topic)
                     } label: {
                         let imageName = switch (topic.notificationMode) {
-                        case .default: "notificationsSmall"
+                        case .default, .unmute: "notificationsSmall"
                         case .follow: "volumeSmall"
                         case .mute: "notificationsOffSmall"
                         }
