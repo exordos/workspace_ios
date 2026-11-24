@@ -76,7 +76,7 @@ final class ChatChannelsViewModel: ObservableObject {
         let nextNotificationMode: TopicNotificationMode = switch topic.notificationMode {
         case .mute:
                 .default
-        case .default:
+        case .default, .unmute:
                 .follow
         case .follow:
                 .mute
