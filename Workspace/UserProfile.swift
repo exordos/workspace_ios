@@ -33,6 +33,12 @@ class UserProfile: ObservableObject {
         return serverConfigs.first { $0.uuid == selectedServerUuid }
     }
 
+    var pushSession: PushSession? {
+        guard let server = selectedServer, let projectUuid = server.projectUuid,
+              accessToken != nil, URL(string: server.baseUrl)?.scheme == "https" else { return nil }
+        return PushSession(serverUuid: server.uuid, projectUuid: projectUuid.lowercased(), baseUrl: server.baseUrl)
+    }
+
     var selectedServerUuid: String? {
         didSet {
             UserDefaults.standard.set(selectedServerUuid, forKey: UserProfileUserDefaultsKey.selectedServerConfigKey.rawValue)
@@ -116,6 +122,7 @@ class UserProfile: ObservableObject {
 
     func removeCurrentConfig() {
         guard let selectedServer else { return }
+        PushNotifications.shared.endSession()
         context.delete(selectedServer)
         try? context.save()
         let selectedServerIndex = serverConfigs.firstIndex(of: selectedServer)
@@ -127,6 +134,7 @@ class UserProfile: ObservableObject {
 
     func clearData() {
         DispatchQueue.main.async { [weak self] in
+            PushNotifications.shared.endSession()
             self?.selectedServerUuid = nil
             self?.accessToken = nil
             self?.refreshToken = nil
@@ -135,6 +143,7 @@ class UserProfile: ObservableObject {
 
     func removeCurrentTokenPair() {
         DispatchQueue.main.async { [weak self] in
+            PushNotifications.shared.endSession()
             self?.accessToken = nil
             self?.refreshToken = nil
             self?.selectedServer?.projectUuid = nil

@@ -15,12 +15,14 @@ struct ChatView: View {
 
     @ObservedObject var viewModel: ChatViewModel
     @State var shouldPresentCallScene = false
+    private let initialMessageUuid: String?
 
     @Query var messages: [MessageData]
     @Query var currentStreamArray: [StreamData]
 
-    init(viewModel: ChatViewModel, streamUuid: String, topicUuid: String) {
+    init(viewModel: ChatViewModel, streamUuid: String, topicUuid: String, initialMessageUuid: String? = nil) {
         self.viewModel = viewModel
+        self.initialMessageUuid = initialMessageUuid
 
         let messagesPredicate = #Predicate<MessageData> { message in
             message.stream?.uuid == streamUuid && message.topic?.uuid == topicUuid
@@ -121,11 +123,19 @@ struct ChatView: View {
                                     )
                             }
                         }
-                        .onAppear { 
-                            value.scrollTo(messages.last?.uuid, anchor: .bottom)
+                        .onAppear {
+                            if let initialMessageUuid, messages.contains(where: { $0.uuid == initialMessageUuid }) {
+                                value.scrollTo(initialMessageUuid, anchor: .center)
+                            } else {
+                                value.scrollTo(messages.last?.uuid, anchor: .bottom)
+                            }
                         }
                         .onChange(of: messages.count) { _, _ in
-                            value.scrollTo(messages.last?.uuid, anchor: .bottom)
+                            if let initialMessageUuid, messages.contains(where: { $0.uuid == initialMessageUuid }) {
+                                value.scrollTo(initialMessageUuid, anchor: .center)
+                            } else {
+                                value.scrollTo(messages.last?.uuid, anchor: .bottom)
+                            }
                         }
                         .padding(12.0)
                     }
